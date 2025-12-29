@@ -173,6 +173,10 @@ public class StateMachineGenerator {
                 .addStatement("this.manager = manager")
                 .addStatement("this.fromState = fromState")
                 .addStatement("this.toState = toState")
+                .addStatement("var validTransitionsTo = fromState.validTransitions()")
+                .beginControlFlow("if(validTransitionsTo == null || !validTransitionsTo.contains(toState))")
+                .addStatement("throw new $T(fromState, toState)", InvalidStateTransition.class)
+                .endControlFlow()
                 .build();
 
         MethodSpec whenMethod = MethodSpec

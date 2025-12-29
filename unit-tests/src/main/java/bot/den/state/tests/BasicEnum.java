@@ -11,10 +11,17 @@ public enum BasicEnum implements HasStateTransitions<BasicEnum> {
     STATE_A,
     STATE_B,
     STATE_C,
+    STATE_D,
     END;
 
     @Override
-    public Set<BasicEnum> validTransitions(BasicEnum from) {
-        return Set.of();
+    public Set<BasicEnum> validTransitions() {
+        return switch (this) {
+            case START -> Set.of(STATE_A);
+            case STATE_A -> Set.of(STATE_B, STATE_C);
+            case STATE_B, STATE_C -> Set.of(STATE_D);
+            case STATE_D -> Set.of(END);
+            case END -> Set.of();
+        };
     }
 }

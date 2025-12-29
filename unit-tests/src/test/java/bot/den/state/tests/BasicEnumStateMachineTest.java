@@ -1,5 +1,6 @@
 package bot.den.state.tests;
 
+import bot.den.state.InvalidStateTransition;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -30,7 +31,7 @@ public class BasicEnumStateMachineTest {
         final AtomicBoolean test = new AtomicBoolean(false);
 
         // Set up our state machine transition
-        machine.from(BasicEnum.START).to(BasicEnum.STATE_B).transitionWhen(test::get);
+        machine.from(BasicEnum.START).to(BasicEnum.STATE_A).transitionWhen(test::get);
 
         // Test our initial state
         assertEquals(BasicEnum.START, machine.currentState());
@@ -51,7 +52,7 @@ public class BasicEnumStateMachineTest {
         machine.poll();
 
         // Verify the transition
-        assertEquals(BasicEnum.STATE_B, machine.currentState());
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
     }
 
     @Test
@@ -59,7 +60,7 @@ public class BasicEnumStateMachineTest {
         BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
 
         // Set up our state machine transition
-        machine.from(BasicEnum.START).to(BasicEnum.STATE_B).always();
+        machine.from(BasicEnum.START).to(BasicEnum.STATE_A).always();
 
         // Test our initial state
         assertEquals(BasicEnum.START, machine.currentState());
@@ -68,7 +69,7 @@ public class BasicEnumStateMachineTest {
         machine.poll();
 
         // Verify the transition
-        assertEquals(BasicEnum.STATE_B, machine.currentState());
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
     }
 
     @Test
@@ -80,7 +81,7 @@ public class BasicEnumStateMachineTest {
         // Set up our state machine transition. Always run to trigger the move to a Command
         machine
                 .from(BasicEnum.START)
-                .to(BasicEnum.STATE_B)
+                .to(BasicEnum.STATE_A)
                 .always()
                 .run(
                         Commands.runOnce(() -> test.set(true)).ignoringDisable(true)
@@ -93,7 +94,7 @@ public class BasicEnumStateMachineTest {
         machine.poll();
 
         // Verify the transition
-        assertEquals(BasicEnum.STATE_B, machine.currentState());
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
 
         // The runOnce command runs in the initializer and therefore runs upon being scheduled
         assertTrue(test.get());
@@ -108,7 +109,7 @@ public class BasicEnumStateMachineTest {
         // Set up our state machine transition. Always run to trigger the move to a Command
         machine
                 .from(BasicEnum.START)
-                .to(BasicEnum.STATE_B)
+                .to(BasicEnum.STATE_A)
                 .always()
                 .run(
                         Commands.run(() -> test.set(true)).ignoringDisable(true)
@@ -121,7 +122,7 @@ public class BasicEnumStateMachineTest {
         machine.poll();
 
         // Verify the transition
-        assertEquals(BasicEnum.STATE_B, machine.currentState());
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
 
         // The run command runs in the execute loop and therefore needs the scheduler
         assertFalse(test.get());
@@ -130,5 +131,44 @@ public class BasicEnumStateMachineTest {
 
         // Now it should be true
         assertTrue(test.get());
+    }
+
+    @Test
+    void invalidTransition() {
+        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        // START -> END is invalid and should fail immediately
+        assertThrows(
+                InvalidStateTransition.class,
+                () -> machine.from(BasicEnum.START).to(BasicEnum.END)
+        );
+    }
+
+    @Test
+    void oneTransitionAtATime() {
+        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        // Set up two transitions to always run
+        machine.from(BasicEnum.START).to(BasicEnum.STATE_A).always();
+        machine.from(BasicEnum.STATE_A).to(BasicEnum.STATE_B).always();
+
+        // Assert that we're at the start state
+        assertEquals(BasicEnum.START, machine.currentState());
+
+        // Move one state
+        machine.poll();
+
+        // Check the next state
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+
+        // Move one more state
+        machine.poll();
+
+        // Check the final state
+        assertEquals(BasicEnum.STATE_B, machine.currentState());
+
+        // No more state moves
+        machine.poll();
+        assertEquals(BasicEnum.STATE_B, machine.currentState());
     }
 }
