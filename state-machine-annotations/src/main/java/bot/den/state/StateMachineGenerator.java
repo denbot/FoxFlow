@@ -113,15 +113,22 @@ public class StateMachineGenerator {
                 .addParameter(stateType, "fromState")
                 .addParameter(stateType, "toState")
                 .addParameter(BooleanSupplier.class, "booleanSupplier")
-                .beginControlFlow("if(!$T.this.transitionWhenMap.containsKey(fromState))", stateMachineClassName)
-                .addStatement("$T.this.transitionWhenMap.put(fromState, new $T<>())", stateMachineClassName, HashMap.class)
-                .endControlFlow()
-                .addStatement("var fromStateMap = $T.this.transitionWhenMap.get(fromState)", stateMachineClassName)
-                .beginControlFlow("if(!fromStateMap.containsKey(toState))")
-                .addStatement("fromStateMap.put(toState, new $T<>())", ArrayList.class)
-                .endControlFlow()
-                .addStatement("var toStateMap = fromStateMap.get(toState)")
-                .addStatement("toStateMap.add(booleanSupplier)")
+                .addCode("""
+                                if(!$1T.this.transitionWhenMap.containsKey(fromState)) {
+                                    $1T.this.transitionWhenMap.put(fromState, new $2T<>());
+                                }
+                                
+                                var fromStateMap = $1T.this.transitionWhenMap.get(fromState);
+                                
+                                if(!fromStateMap.containsKey(toState)) {
+                                    fromStateMap.put(toState, new $3T<>());
+                                }
+                                
+                                fromStateMap.get(toState).add(booleanSupplier);
+                                """,
+                        stateMachineClassName,
+                        HashMap.class,
+                        ArrayList.class)
                 .build();
 
         MethodSpec runMethod = MethodSpec
@@ -130,15 +137,21 @@ public class StateMachineGenerator {
                 .addParameter(stateType, "fromState")
                 .addParameter(stateType, "toState")
                 .addParameter(Command.class, "command")
-                .beginControlFlow("if(!$T.this.transitionCommandMap.containsKey(fromState))", stateMachineClassName)
-                .addStatement("$T.this.transitionCommandMap.put(fromState, new $T<>())", stateMachineClassName, HashMap.class)
-                .endControlFlow()
-                .addStatement("var fromStateMap = $T.this.transitionCommandMap.get(fromState)", stateMachineClassName)
-                .beginControlFlow("if(!fromStateMap.containsKey(toState))")
-                .addStatement("fromStateMap.put(toState, new $T<>())", ArrayList.class)
-                .endControlFlow()
-                .addStatement("var toStateMap = fromStateMap.get(toState)")
-                .addStatement("toStateMap.add(command)")
+                .addCode("""
+                                if(!$1T.this.transitionCommandMap.containsKey(fromState)) {
+                                    $1T.this.transitionCommandMap.put(fromState, new $2T<>());
+                                }
+                                
+                                var fromStateMap = $1T.this.transitionCommandMap.get(fromState);
+                                if(!fromStateMap.containsKey(toState)) {
+                                    fromStateMap.put(toState, new $3T<>());
+                                }
+                                
+                                fromStateMap.get(toState).add(command);
+                                """,
+                        stateMachineClassName,
+                        HashMap.class,
+                        ArrayList.class)
                 .build();
 
         MethodSpec triggerMethod = MethodSpec
@@ -159,11 +172,26 @@ public class StateMachineGenerator {
                 )
                 .build();
 
+        MethodSpec guardInvalidTransitionMethod = MethodSpec
+                .methodBuilder("guardInvalidTransition")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(stateType, "fromState")
+                .addParameter(stateType, "toState")
+                .addCode("""
+                                var validTransitionsTo = fromState.validTransitions();
+                                if(validTransitionsTo == null || !validTransitionsTo.contains(toState)) {
+                                    throw new $T(fromState, toState);
+                                }
+                                """,
+                        InvalidStateTransition.class)
+                .build();
+
         return TypeSpec
                 .classBuilder(stateManagerClassName)
                 .addMethod(whenMethod)
                 .addMethod(runMethod)
                 .addMethod(triggerMethod)
+                .addMethod(guardInvalidTransitionMethod)
                 .build();
     }
 
@@ -189,13 +217,13 @@ public class StateMachineGenerator {
                 .addParameter(stateManagerClassName, "manager")
                 .addParameter(stateType, "fromState")
                 .addParameter(stateType, "toState")
-                .addStatement("this.manager = manager")
-                .addStatement("this.fromState = fromState")
-                .addStatement("this.toState = toState")
-                .addStatement("var validTransitionsTo = fromState.validTransitions()")
-                .beginControlFlow("if(validTransitionsTo == null || !validTransitionsTo.contains(toState))")
-                .addStatement("throw new $T(fromState, toState)", InvalidStateTransition.class)
-                .endControlFlow()
+                .addCode("""
+                        this.manager = manager;
+                        this.fromState = fromState;
+                        this.toState = toState;
+                        
+                        manager.guardInvalidTransition(fromState, toState);
+                        """)
                 .build();
 
         MethodSpec whenMethod = MethodSpec
@@ -409,8 +437,18 @@ public class StateMachineGenerator {
                 .addParameter(stateType, "state")
                 .returns(Command.class)
                 .addCode("""
-                        return $T.runOnce(() -> updateState(state)).ignoringDisable(true);
-                        """,
+                                return $T.runOnce(() -> updateState(state)).ignoringDisable(true);
+                                """,
+                        Commands.class)
+                .build();
+
+        MethodSpec runPollCommandMethod = MethodSpec
+                .methodBuilder("runPollCommand")
+                .addModifiers(Modifier.PUBLIC)
+                .returns(Command.class)
+                .addCode("""
+                                return $T.run(this::poll).ignoringDisable(true);
+                                """,
                         Commands.class)
                 .build();
 
@@ -469,6 +507,8 @@ public class StateMachineGenerator {
                 .addModifiers(Modifier.PRIVATE)
                 .addParameter(stateType, "nextState")
                 .addCode("""
+                        this.manager.guardInvalidTransition(currentState, nextState);
+                        
                         runTransitionCommands(nextState);
                         
                         this.currentState = nextState;
@@ -508,6 +548,7 @@ public class StateMachineGenerator {
                 .addMethod(currentStateMethod)
                 .addMethod(stateMethod)
                 .addMethod(transitionToMethod)
+                .addMethod(runPollCommandMethod)
                 .addMethod(pollMethod)
                 .addMethod(getNextStateMethod)
                 .addMethod(updateStateMethod)

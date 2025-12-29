@@ -7,6 +7,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -18,6 +19,13 @@ public class BasicEnumStateMachineTest {
     @BeforeEach
     public void setup() {
         assertTrue(HAL.initialize(500, 0));
+    }
+
+    @AfterEach
+    public void cleanup() {
+        // This method runs after each test to reset the scheduler state
+        CommandScheduler.getInstance().cancelAll();
+        CommandScheduler.getInstance().run(); // Call run() to execute end() methods
     }
 
     @Test
@@ -301,8 +309,8 @@ public class BasicEnumStateMachineTest {
         // Scheduling a command calls the initialize method, which should be what does the state transition
         command.schedule();
 
-        // This should technically be enough to verify that no more transitions will happen
-        assertFalse(command.isScheduled());
+        // The command is still scheduled as the command scheduler hasn't run to clear that state yet
+        assertTrue(command.isScheduled());
 
         // Verify we're still at the A state
         assertEquals(BasicEnum.STATE_A, machine.currentState());
@@ -314,5 +322,42 @@ public class BasicEnumStateMachineTest {
         // For extra assurance, we make sure running the scheduler didn't change the state
         CommandScheduler.getInstance().run();
         assertEquals(BasicEnum.STATE_B, machine.currentState());
+    }
+
+    @Test
+    void runPollCommand() {
+        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        // Set up our state machine transition
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).always();
+
+        CommandScheduler.getInstance().run();
+
+        // Nothing should change yet
+        assertEquals(BasicEnum.START, machine.currentState());
+
+        machine.runPollCommand().schedule();
+
+        // We shouldn't do anything when the command is initialized
+        assertEquals(BasicEnum.START, machine.currentState());
+
+        // This should actually run the poll command
+        CommandScheduler.getInstance().run();
+
+        // Verify our final state
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+    }
+
+    @Test
+    void invalidTransitionCannotBeForced() {
+        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        machine.runPollCommand().schedule();
+
+        // This is an invalid transition
+        Command command = machine.transitionTo(BasicEnum.END);
+
+        assertThrows(InvalidStateTransition.class, command::schedule);
+
+        assertEquals(BasicEnum.START, machine.currentState());
     }
 }
