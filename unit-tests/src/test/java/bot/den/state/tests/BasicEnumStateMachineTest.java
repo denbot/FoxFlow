@@ -1,6 +1,6 @@
 package bot.den.state.tests;
 
-import bot.den.state.InvalidStateTransition;
+import bot.den.state.exceptions.InvalidStateTransition;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj.event.EventLoop;
 import edu.wpi.first.wpilibj2.command.Command;

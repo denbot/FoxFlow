@@ -1,5 +1,6 @@
 package bot.den.state;
 
+import bot.den.state.exceptions.InvalidStateTransition;
 import com.palantir.javapoet.*;
 import edu.wpi.first.wpilibj.event.EventLoop;
 import edu.wpi.first.wpilibj2.command.Command;
