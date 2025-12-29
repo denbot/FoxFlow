@@ -4,6 +4,7 @@ import com.palantir.javapoet.*;
 import edu.wpi.first.wpilibj.event.EventLoop;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
 import javax.annotation.processing.ProcessingEnvironment;
@@ -371,11 +372,15 @@ public class StateMachineGenerator {
                 .constructorBuilder()
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(stateType, "initialState")
-                .addStatement("this.currentState = initialState")
-                .addStatement("this.transitionWhenMap = new $T<>()", HashMap.class)
-                .addStatement("this.transitionCommandMap = new $T<>()", HashMap.class)
-                .addStatement("this.triggerMap = new $T<>()", HashMap.class)
-                .addStatement("this.manager = new $T()", stateManagerClassName)
+                .addCode("""
+                                this.currentState = initialState;
+                                this.transitionWhenMap = new $2T<>();
+                                this.transitionCommandMap = new $2T<>();
+                                this.triggerMap = new $2T<>();
+                                this.manager = new $1T();
+                                """,
+                        stateManagerClassName,
+                        HashMap.class)
                 .build();
 
         MethodSpec currentStateMethod = MethodSpec
@@ -398,6 +403,17 @@ public class StateMachineGenerator {
                         stateFromClassName)
                 .build();
 
+        MethodSpec transitionToMethod = MethodSpec
+                .methodBuilder("transitionTo")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(stateType, "state")
+                .returns(Command.class)
+                .addCode("""
+                        return $T.runOnce(() -> updateState(state)).ignoringDisable(true);
+                        """,
+                        Commands.class)
+                .build();
+
         var optionalState = ParameterizedTypeName.get(
                 ClassName.get(Optional.class),
                 stateType
@@ -407,36 +423,18 @@ public class StateMachineGenerator {
                 .methodBuilder("poll")
                 .addModifiers(Modifier.PUBLIC)
                 .addCode("""
-                                $T nextStateOption = this.getNextState();
+                                $1T nextStateOption = this.getNextState();
                                 if(nextStateOption.isEmpty()) {
                                     return;
                                 }
                                 
-                                $T nextState = nextStateOption.get();
+                                $2T nextState = nextStateOption.get();
+                                
+                                this.updateState(nextState);
                                 """,
                         optionalState,
                         stateType
                 )
-                .beginControlFlow("if (transitionCommandMap.containsKey(currentState))")
-                .addCode(CodeBlock
-                        .builder()
-                        .addStatement("var toMap = transitionCommandMap.get(currentState)")
-                        .beginControlFlow("if(toMap.containsKey(nextState))")
-                        .add(CodeBlock
-                                .builder()
-                                .addStatement("var commands = toMap.get(nextState)")
-                                .beginControlFlow("for(var command : commands)")
-                                .addStatement("command.schedule()")
-                                .endControlFlow()
-                                .build()
-                        )
-                        .endControlFlow()
-                        .build()
-                )
-                .endControlFlow()
-                .beginControlFlow("if (nextState != null)")
-                .addStatement("this.currentState = nextState")
-                .endControlFlow()
                 .build();
 
         MethodSpec getNextStateMethod = MethodSpec
@@ -466,6 +464,38 @@ public class StateMachineGenerator {
                 )
                 .build();
 
+        MethodSpec updateStateMethod = MethodSpec
+                .methodBuilder("updateState")
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter(stateType, "nextState")
+                .addCode("""
+                        runTransitionCommands(nextState);
+                        
+                        this.currentState = nextState;
+                        """)
+                .build();
+
+        MethodSpec runTransitionCommands = MethodSpec
+                .methodBuilder("runTransitionCommands")
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter(stateType, "nextState")
+                .addCode("""
+                        if (! transitionCommandMap.containsKey(currentState)) {
+                            return;
+                        }
+                        
+                        var toMap = transitionCommandMap.get(currentState);
+                        if(! toMap.containsKey(nextState)) {
+                            return;
+                        }
+                        
+                        var commands = toMap.get(nextState);
+                        for(var command : commands) {
+                            command.schedule();
+                        }
+                        """)
+                .build();
+
         TypeSpec type = TypeSpec
                 .classBuilder(stateMachineClassName)
                 .addModifiers(Modifier.PUBLIC)
@@ -477,8 +507,11 @@ public class StateMachineGenerator {
                 .addMethod(constructor)
                 .addMethod(currentStateMethod)
                 .addMethod(stateMethod)
+                .addMethod(transitionToMethod)
                 .addMethod(pollMethod)
                 .addMethod(getNextStateMethod)
+                .addMethod(updateStateMethod)
+                .addMethod(runTransitionCommands)
                 .addType(internalStateManager)
                 .build();
 

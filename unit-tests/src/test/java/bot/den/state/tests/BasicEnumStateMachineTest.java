@@ -3,6 +3,7 @@ package bot.den.state.tests;
 import bot.den.state.InvalidStateTransition;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj.event.EventLoop;
+import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
@@ -266,5 +267,52 @@ public class BasicEnumStateMachineTest {
 
         // The trigger did not run because START was the original state
         assertFalse(test.get());
+    }
+
+    @Test
+    void transitionToCommand() {
+        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        // Create our command
+        Command command = machine.transitionTo(BasicEnum.STATE_A);
+
+        // Ensure creating the command didn't do anything
+        assertEquals(BasicEnum.START, machine.currentState());
+
+        // Scheduling a command calls the initialize method, which should be what does the state transition
+        command.schedule();
+
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+    }
+
+    @Test
+    void transitionToCommandOnlyRunsOnce() {
+        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        // Create our command
+        Command command = machine.transitionTo(BasicEnum.STATE_A);
+
+        // Always jump from A to B on a machine.poll() call
+        machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_B).always();
+
+        // Ensure creating the command didn't do anything
+        assertEquals(BasicEnum.START, machine.currentState());
+
+        // Scheduling a command calls the initialize method, which should be what does the state transition
+        command.schedule();
+
+        // This should technically be enough to verify that no more transitions will happen
+        assertFalse(command.isScheduled());
+
+        // Verify we're still at the A state
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+
+        // When we poll, the state should jump to B due to the always call above
+        machine.poll();
+        assertEquals(BasicEnum.STATE_B, machine.currentState());
+
+        // For extra assurance, we make sure running the scheduler didn't change the state
+        CommandScheduler.getInstance().run();
+        assertEquals(BasicEnum.STATE_B, machine.currentState());
     }
 }
