@@ -93,22 +93,15 @@ public class StateMachineGenerator extends GenerationBase {
                 String fieldName = recordValidator.fieldNameMap.get(typeName);
                 recordConstructor.addParameter(typeName, fieldName);
 
-                var optionalType = ParameterizedTypeName.get(
-                        ClassName.get(Optional.class),
-                        typeName
-                );
-
                 canBeComparedMethodBuilder.addCode(
                         """
-                                $T %1$sOptional = %2$s(data);
-                                if(%1$sOptional.isPresent() && !this.%1$s.canTransitionTo(%1$sOptional.get())) {
-                                    return false;
-                                }
+                                $T %1$s = %2$s(data);
+                                if(%1$s != null && !this.%1$s.canTransitionTo(%1$s)) return false;
                                 """.formatted(
                                 fieldName,
                                 "get" + ucfirst(fieldName)
                         ),
-                        optionalType
+                        typeName
                 );
             }
 
@@ -132,15 +125,10 @@ public class StateMachineGenerator extends GenerationBase {
             var entryType = recordEntry.getKey();
             var entryName = recordEntry.getValue();
 
-            var optionalType = ParameterizedTypeName.get(
-                    ClassName.get(Optional.class),
-                    entryType
-            );
-
             MethodSpec.Builder extractorMethodBuilder = MethodSpec
                     .methodBuilder("get" + ucfirst(entryName))
                     .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                    .returns(optionalType)
+                    .returns(entryType)
                     .addParameter(stateData, "data");
             for (var types : recordValidator.permutations) {
                 if (!Arrays.asList(types).contains(entryType)) {
@@ -150,13 +138,12 @@ public class StateMachineGenerator extends GenerationBase {
                 var innerClassName = recordValidator.innerClassMap.get(types);
 
                 extractorMethodBuilder.addStatement(
-                        "if (data instanceof $T s) return $T.of(s." + entryName + ")",
-                        innerClassName,
-                        Optional.class
+                        "if (data instanceof $T s) return s." + entryName,
+                        innerClassName
                 );
             }
 
-            extractorMethodBuilder.addStatement("return Optional.empty()");
+            extractorMethodBuilder.addStatement("return null");
 
             recordInterfaceBuilder.addMethod(extractorMethodBuilder.build());
         }
@@ -509,25 +496,17 @@ public class StateMachineGenerator extends GenerationBase {
                         Commands.class)
                 .build();
 
-        var optionalState = ParameterizedTypeName.get(
-                ClassName.get(Optional.class),
-                stateDataName
-        );
-
         MethodSpec pollMethod = MethodSpec
                 .methodBuilder("poll")
                 .addModifiers(Modifier.PUBLIC)
                 .addCode("""
-                                $1T nextStateOption = this.getNextState();
-                                if(nextStateOption.isEmpty()) {
+                                $T nextState = this.getNextState();
+                                if(nextState == null) {
                                     return;
                                 }
                                 
-                                $2T nextState = nextStateOption.get();
-                                
                                 this.updateState(nextState);
                                 """,
-                        optionalState,
                         stateDataName
                 )
                 .build();
@@ -535,26 +514,26 @@ public class StateMachineGenerator extends GenerationBase {
         MethodSpec getNextStateMethod = MethodSpec
                 .methodBuilder("getNextState")
                 .addModifiers(Modifier.PRIVATE)
-                .returns(optionalState)
+                .returns(stateDataName)
                 .addCode("""
                         if (!transitionWhenMap.containsKey(currentState)) {
-                            return Optional.empty();
+                            return null;
                         }
                         
                         var toMap = transitionWhenMap.get(currentState);
                         for(var entry : toMap.entrySet()) {
                             var toState = entry.getKey();
                             if(! toMap.containsKey(toState)) {
-                                return Optional.empty();
+                                return null;
                             }
                             for(var supplier : toMap.get(toState)) {
                                 if (supplier.getAsBoolean()) {
-                                    return Optional.of(entry.getKey());
+                                    return entry.getKey();
                                 }
                             }
                         }
                         
-                        return Optional.empty();
+                        return null;
                         """
                 )
                 .build();
