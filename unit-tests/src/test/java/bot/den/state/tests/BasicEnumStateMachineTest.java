@@ -288,7 +288,7 @@ public class BasicEnumStateMachineTest {
         assertEquals(BasicEnum.START, machine.currentState());
 
         // Scheduling a command calls the initialize method, which should be what does the state transition
-        command.schedule();
+        CommandScheduler.getInstance().schedule(command);
 
         assertEquals(BasicEnum.STATE_A, machine.currentState());
     }
@@ -307,7 +307,7 @@ public class BasicEnumStateMachineTest {
         assertEquals(BasicEnum.START, machine.currentState());
 
         // Scheduling a command calls the initialize method, which should be what does the state transition
-        command.schedule();
+        CommandScheduler.getInstance().schedule(command);
 
         // The command is still scheduled as the command scheduler hasn't run to clear that state yet
         assertTrue(command.isScheduled());
@@ -336,7 +336,7 @@ public class BasicEnumStateMachineTest {
         // Nothing should change yet
         assertEquals(BasicEnum.START, machine.currentState());
 
-        machine.runPollCommand().schedule();
+        CommandScheduler.getInstance().schedule(machine.runPollCommand());
 
         // We shouldn't do anything when the command is initialized
         assertEquals(BasicEnum.START, machine.currentState());
@@ -351,7 +351,7 @@ public class BasicEnumStateMachineTest {
     @Test
     void invalidTransitionCannotBeForced() {
         BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
-        machine.runPollCommand().schedule();
+        CommandScheduler.getInstance().schedule(machine.runPollCommand());
 
         // This is an invalid transition
         Command command = machine.transitionTo(BasicEnum.END);

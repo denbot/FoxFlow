@@ -875,9 +875,9 @@ public class StateMachineGenerator extends GenerationBase {
                         
                         var commands = toMap.get(nextState);
                         for(var command : commands) {
-                            command.schedule();
+                            $T.getInstance().schedule(command);
                         }
-                        """)
+                        """, CommandScheduler.class)
                 .build();
 
         List<MethodSpec> verifyStateEnabledMethods = new ArrayList<>();
