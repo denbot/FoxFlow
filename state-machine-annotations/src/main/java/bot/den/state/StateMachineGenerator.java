@@ -266,20 +266,24 @@ public class StateMachineGenerator extends GenerationBase {
                 .addParameter(EventLoop.class, "eventLoop")
                 .addParameter(stateDataName, "state");
 
+        // Set
+        String containsOrEquals = "currentState.equals";
         if (validator instanceof RecordValidator) {
             triggerMethodBuilder.addStatement("$1T.this.verifyFromStateEnabled(state)", stateMachineClassName);
+            containsOrEquals = "currentSubData.contains";
         }
 
         triggerMethodBuilder
                 .addCode("""
                                 if(! $1T.this.triggerMap.containsKey(state)) {
-                                    var trigger = new Trigger(eventLoop, () -> $1T.this.currentState.equals(state));
+                                    var trigger = new Trigger(eventLoop, () -> $1T.this.$2L(state));
                                     triggerMap.put(state, trigger);
                                 }
                                 
                                 return triggerMap.get(state);
                                 """,
-                        stateMachineClassName
+                        stateMachineClassName,
+                        containsOrEquals
                 );
 
         MethodSpec triggerMethod = triggerMethodBuilder.build();
