@@ -196,19 +196,15 @@ public class StateMachineGenerator extends GenerationBase {
     }
 
     private TypeSpec createInternalStateManager() {
-        MethodSpec.Builder whenMethodBuilder = MethodSpec
+        MethodSpec whenMethod = MethodSpec
                 .methodBuilder("transitionWhen")
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(stateDataName, "fromState")
                 .addParameter(stateDataName, "toState")
-                .addParameter(BooleanSupplier.class, "booleanSupplier");
-
-        if (validator instanceof RecordValidator) {
-            whenMethodBuilder.addStatement("$1T.this.verifyFromStateEnabled(fromState)", stateMachineClassName);
-        }
-
-        whenMethodBuilder
+                .addParameter(BooleanSupplier.class, "booleanSupplier")
                 .addCode("""
+                                $1T.this.verifyFromStateEnabled(fromState);
+                                
                                 if(!$1T.this.transitionWhenMap.containsKey(fromState)) {
                                     $1T.this.transitionWhenMap.put(fromState, new $2T<>());
                                 }
@@ -223,25 +219,19 @@ public class StateMachineGenerator extends GenerationBase {
                                 """,
                         stateMachineClassName,
                         HashMap.class,
-                        ArrayList.class);
+                        ArrayList.class)
+                .build();
 
-        MethodSpec whenMethod = whenMethodBuilder.build();
-
-        MethodSpec.Builder runMethodBuilder = MethodSpec
+        MethodSpec runMethod = MethodSpec
                 .methodBuilder("run")
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(stateDataName, "fromState")
                 .addParameter(stateDataName, "toState")
-                .addParameter(Command.class, "command");
-
-        if (validator instanceof RecordValidator) {
-            runMethodBuilder
-                    .addStatement("$1T.this.verifyFromStateEnabled(fromState)", stateMachineClassName)
-                    .addStatement("$1T.this.verifyToStateEnabled(toState)", stateMachineClassName);
-        }
-
-        runMethodBuilder
+                .addParameter(Command.class, "command")
                 .addCode("""
+                                $1T.this.verifyFromStateEnabled(fromState);
+                                $1T.this.verifyToStateEnabled(toState);
+                                
                                 if(!$1T.this.transitionCommandMap.containsKey(fromState)) {
                                     $1T.this.transitionCommandMap.put(fromState, new $2T<>());
                                 }
@@ -255,38 +245,28 @@ public class StateMachineGenerator extends GenerationBase {
                                 """,
                         stateMachineClassName,
                         HashMap.class,
-                        ArrayList.class);
+                        ArrayList.class)
+                .build();
 
-        MethodSpec runMethod = runMethodBuilder.build();
-
-        MethodSpec.Builder triggerMethodBuilder = MethodSpec
+        MethodSpec triggerMethod = MethodSpec
                 .methodBuilder("trigger")
                 .addModifiers(Modifier.PUBLIC)
                 .returns(Trigger.class)
                 .addParameter(EventLoop.class, "eventLoop")
-                .addParameter(stateDataName, "state");
-
-        // Set
-        String containsOrEquals = "currentState.equals";
-        if (validator instanceof RecordValidator) {
-            triggerMethodBuilder.addStatement("$1T.this.verifyFromStateEnabled(state)", stateMachineClassName);
-            containsOrEquals = "currentSubData.contains";
-        }
-
-        triggerMethodBuilder
+                .addParameter(stateDataName, "state")
                 .addCode("""
+                                $1T.this.verifyFromStateEnabled(state);
+
                                 if(! $1T.this.triggerMap.containsKey(state)) {
-                                    var trigger = new Trigger(eventLoop, () -> $1T.this.$2L(state));
+                                    var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
                                     triggerMap.put(state, trigger);
                                 }
                                 
                                 return triggerMap.get(state);
                                 """,
-                        stateMachineClassName,
-                        containsOrEquals
-                );
-
-        MethodSpec triggerMethod = triggerMethodBuilder.build();
+                        stateMachineClassName
+                )
+                .build();
 
         return TypeSpec
                 .classBuilder(stateManagerClassName)
@@ -512,14 +492,11 @@ public class StateMachineGenerator extends GenerationBase {
                 .build();
 
         var subDataSetType = ParameterizedTypeName.get(ClassName.get(Set.class), stateDataName);
-        FieldSpec currentSubDataField = null;
-        if (validator instanceof RecordValidator) {
 
-            currentSubDataField = FieldSpec
-                    .builder(subDataSetType, "currentSubData")
-                    .addModifiers(Modifier.PRIVATE)
-                    .build();
-        }
+        FieldSpec currentSubDataField = FieldSpec
+                .builder(subDataSetType, "currentSubData")
+                .addModifiers(Modifier.PRIVATE)
+                .build();
 
         var transitionWhenMapType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
@@ -576,6 +553,7 @@ public class StateMachineGenerator extends GenerationBase {
                 Map.entry(TO, new HashMap<>())
         );
 
+        // Individual boolean enabled fields
         if (validator instanceof RecordValidator rv) {
             innerClassEnabledFields
                     .forEach((key, value) -> {
@@ -598,6 +576,7 @@ public class StateMachineGenerator extends GenerationBase {
                         .addModifiers(Modifier.PUBLIC)
                         .addParameter(validator.originalTypeName(), "initialState")
                         .addStatement("this.currentState = initialState")
+                        .addStatement("this.currentSubData = this.generateToSubDataStates(initialState)")
                         .build();
             }
 
@@ -705,7 +684,7 @@ public class StateMachineGenerator extends GenerationBase {
                             .build();
                 } else if (validator instanceof RecordValidator) {
                     /*
-                    We don't make a transitionTo method for a record ad the record could contain the RobotState and the
+                    We don't make a transitionTo method for a record as the record could contain the RobotState and the
                     user should not be able to force that transition. We could theoretically check if the record had a
                     RobotState as one of its components, but then the method might "disappear" from the user's
                     perspective. We could ignore the robot state when updating our internal state, but that might be
@@ -822,7 +801,11 @@ public class StateMachineGenerator extends GenerationBase {
         updateStateMethodBuilder.addStatement("runTransitionCommands(nextState)");
         updateStateMethodBuilder.addCode("\n");
 
-        if (validator instanceof RecordValidator rv) {
+        // Create new data instance or just assign the state manually depending on type
+        if(validator instanceof EnumValidator) {
+            updateStateMethodBuilder
+                    .addStatement("this.currentState = nextState");
+        } else if (validator instanceof RecordValidator rv) {
             for (var type : rv.fieldTypes) {
                 var fieldName = rv.fieldNameMap.get(type);
                 updateStateMethodBuilder.addStatement(
@@ -850,12 +833,11 @@ public class StateMachineGenerator extends GenerationBase {
 
             code.add(");$]\n");
 
-            code.addStatement("this.currentSubData = generateFromSubDataStates(this.currentState)");
-
             updateStateMethodBuilder.addCode(code.build());
-        } else {
-            updateStateMethodBuilder.addStatement("this.currentState = nextState");
         }
+
+        updateStateMethodBuilder
+                .addStatement("this.currentSubData = generateFromSubDataStates(this.currentState)");
 
         MethodSpec updateStateMethod = updateStateMethodBuilder.build();
 
@@ -881,14 +863,18 @@ public class StateMachineGenerator extends GenerationBase {
                 .build();
 
         List<MethodSpec> verifyStateEnabledMethods = new ArrayList<>();
-        if (validator instanceof RecordValidator) {
-            innerClassEnabledFields
-                    .forEach((key, fieldMap) -> {
-                        MethodSpec.Builder verifyStateEnabledMethodBuilder = MethodSpec
-                                .methodBuilder("verify" + ucfirst(key) + "StateEnabled")
-                                .addModifiers(Modifier.PRIVATE)
-                                .addParameter(stateDataName, "state");
+        innerClassEnabledFields
+                .forEach((key, fieldMap) -> {
+                    MethodSpec.Builder verifyStateEnabledMethodBuilder = MethodSpec
+                            .methodBuilder("verify" + ucfirst(key) + "StateEnabled")
+                            .addModifiers(Modifier.PRIVATE)
+                            .addParameter(stateDataName, "state");
 
+                    if (validator instanceof EnumValidator) {
+                        verifyStateEnabledMethodBuilder
+                                .addComment("We have no states to enable, but this does make record state machine generation easier")
+                                .addStatement("return");
+                    } else if (validator instanceof RecordValidator) {
                         fieldMap
                                 .entrySet()
                                 .stream()
@@ -911,20 +897,26 @@ public class StateMachineGenerator extends GenerationBase {
                                             .addStatement("return")
                                             .endControlFlow();
                                 });
+                    }
 
-                        verifyStateEnabledMethods.add(verifyStateEnabledMethodBuilder.build());
-                    });
-        }
+                    verifyStateEnabledMethods.add(verifyStateEnabledMethodBuilder.build());
+                });
 
         List<MethodSpec> generateSubDataStatesMethods = new ArrayList<>();
-        if (validator instanceof RecordValidator rv) {
-            innerClassEnabledFields
-                    .forEach((key, fieldMap) -> {
-                        MethodSpec.Builder generateSubDataStateBuilder = MethodSpec
-                                .methodBuilder("generate" + ucfirst(key) + "SubDataStates")
-                                .addModifiers(Modifier.PRIVATE)
-                                .addParameter(rv.originalTypeName(), "state")
-                                .returns(subDataSetType)
+        innerClassEnabledFields
+                .forEach((key, fieldMap) -> {
+                    MethodSpec.Builder generateSubDataStateBuilder = MethodSpec
+                            .methodBuilder("generate" + ucfirst(key) + "SubDataStates")
+                            .addModifiers(Modifier.PRIVATE)
+                            .addParameter(validator.originalTypeName(), "state")
+                            .returns(subDataSetType);
+
+                    if (validator instanceof EnumValidator) {
+                        generateSubDataStateBuilder
+                                .addComment("Enum state machines only ever contain the one state, this does make record state machine generation easier")
+                                .addStatement("return Set.of(state)");
+                    } else if (validator instanceof RecordValidator rv) {
+                        generateSubDataStateBuilder
                                 .addStatement("$1T result = new $2T<>()", subDataSetType, HashSet.class);
 
                         rv.fieldNameMap.forEach(
@@ -947,22 +939,17 @@ public class StateMachineGenerator extends GenerationBase {
 
                         generateSubDataStateBuilder
                                 .addStatement("return result");
+                    }
 
-                        generateSubDataStatesMethods.add(generateSubDataStateBuilder.build());
-                    });
-        }
+                    generateSubDataStatesMethods.add(generateSubDataStateBuilder.build());
+                });
 
         TypeSpec.Builder typeBuilder = TypeSpec
                 .classBuilder(stateMachineClassName)
                 .addModifiers(Modifier.PUBLIC)
                 .addField(managerField)
-                .addField(currentStateField);
-
-        if (currentSubDataField != null) {
-            typeBuilder.addField(currentSubDataField);
-        }
-
-        typeBuilder
+                .addField(currentStateField)
+                .addField(currentSubDataField)
                 .addField(transitionWhenMap)
                 .addField(transitionCommandMap)
                 .addField(triggerMap);
