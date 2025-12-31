@@ -606,9 +606,12 @@ public class StateMachineGenerator extends GenerationBase {
         List<MethodSpec> constructors = validator.visitTopLevel(new Validator.Visitor<>() {
             @Override
             public MethodSpec acceptUserDataType() {
+                // We disallow using a record class in the constructor publicly just in case the record has a RobotState.
+                var publicOrPrivate = validator instanceof RecordValidator ? Modifier.PRIVATE : Modifier.PUBLIC;
+
                 return MethodSpec
                         .constructorBuilder()
-                        .addModifiers(Modifier.PUBLIC)
+                        .addModifiers(publicOrPrivate)
                         .addParameter(validator.originalTypeName(), "initialState")
                         .addStatement("this.currentState = initialState")
                         .addStatement("this.currentSubData = this.generateToSubDataStates(initialState)")

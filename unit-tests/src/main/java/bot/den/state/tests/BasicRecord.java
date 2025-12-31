@@ -10,7 +10,7 @@ public record BasicRecord(
         InnerEnum inner
 ) {
     enum InnerEnum implements CanTransitionState<InnerEnum> {
-        START, CIRCLE, SQUARE;
+        STAR, CIRCLE, SQUARE;
 
         @Override
         public boolean canTransitionTo(InnerEnum newState) {
