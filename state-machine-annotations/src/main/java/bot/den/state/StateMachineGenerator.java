@@ -1,5 +1,7 @@
 package bot.den.state;
 
+import bot.den.state.exceptions.FailLoudlyException;
+import bot.den.state.exceptions.InvalidStateTransition;
 import bot.den.state.validator.EnumValidator;
 import bot.den.state.validator.RecordValidator;
 import bot.den.state.validator.Validator;
@@ -62,7 +64,7 @@ public class StateMachineGenerator {
 
     public void generate() {
         if (validator instanceof RecordValidator recordValidator) {
-            for(var type : recordValidator.typesToWrite) {
+            for (var type : recordValidator.typesToWrite) {
                 this.environment.writeType(type);
             }
         }
@@ -135,6 +137,29 @@ public class StateMachineGenerator {
                         ArrayList.class)
                 .build();
 
+        MethodSpec failLoudlyMethod = MethodSpec
+                .methodBuilder("failLoudly")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(stateDataName, "fromState")
+                .addParameter(stateDataName, "toState")
+                .addCode("""
+                                $1T.this.verifyFromStateEnabled(fromState);
+                                $1T.this.verifyToStateEnabled(toState);
+                                
+                                if(!$1T.this.failLoudlyMap.containsKey(fromState)) {
+                                    $1T.this.failLoudlyMap.put(fromState, new $2T<>());
+                                }
+                                
+                                $1T.this.failLoudlyMap.get(fromState).add(toState);
+                                
+                                if($1T.this.currentSubData.contains(fromState)) {
+                                    $1T.this.regenerateFailLoudlyCache();
+                                }
+                                """,
+                        stateMachineClassName,
+                        HashSet.class)
+                .build();
+
         MethodSpec triggerMethod = MethodSpec
                 .methodBuilder("trigger")
                 .addModifiers(Modifier.PUBLIC)
@@ -159,6 +184,7 @@ public class StateMachineGenerator {
                 .classBuilder(stateManagerClassName)
                 .addMethod(whenMethod)
                 .addMethod(runMethod)
+                .addMethod(failLoudlyMethod)
                 .addMethod(triggerMethod)
                 .build();
     }
@@ -191,7 +217,7 @@ public class StateMachineGenerator {
                         this.toState = toState;
                         """);
 
-        if(validator.supportsStateTransition()) {
+        if (validator.supportsStateTransition()) {
             constructorBuilder.addStatement("fromState.attemptTransitionTo(toState)");
         }
 
@@ -201,13 +227,13 @@ public class StateMachineGenerator {
                 .methodBuilder("run")
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(Command.class, "command")
-                .addStatement("""
-                        this.manager.run(
-                        this.fromState,
-                        this.toState,
-                        command
-                        )"""
-                )
+                .addStatement("this.manager.run(this.fromState, this.toState, command)")
+                .build();
+
+        MethodSpec failLoudlyMethod = MethodSpec
+                .methodBuilder("failLoudly")
+                .addModifiers(Modifier.PUBLIC)
+                .addStatement("this.manager.failLoudly(this.fromState, this.toState)")
                 .build();
 
         TypeSpec type = TypeSpec
@@ -218,6 +244,7 @@ public class StateMachineGenerator {
                 .addField(toStateField)
                 .addMethod(constructor)
                 .addMethod(runMethod)
+                .addMethod(failLoudlyMethod)
                 .build();
 
         this.environment.writeType(type);
@@ -238,13 +265,7 @@ public class StateMachineGenerator {
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(BooleanSupplier.class, "booleanSupplier")
                 .returns(stateToClassName)
-                .addStatement("""
-                        this.manager.transitionWhen(
-                        this.fromState,
-                        this.toState,
-                        booleanSupplier
-                        )"""
-                )
+                .addStatement("this.manager.transitionWhen(this.fromState, this.toState, booleanSupplier)")
                 .addStatement("return this")
                 .build();
 
@@ -300,13 +321,7 @@ public class StateMachineGenerator {
                         .addModifiers(Modifier.PUBLIC)
                         .addParameter(validator.originalTypeName(), "state")
                         .returns(stateToClassName)
-                        .addCode("""
-                                        return new $T(
-                                        this.manager,
-                                        this.targetState,
-                                        state
-                                        );""",
-                                stateToClassName)
+                        .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
                         .build();
             }
 
@@ -341,15 +356,7 @@ public class StateMachineGenerator {
                         .addModifiers(Modifier.PRIVATE)
                         .returns(stateToClassName)
                         .addParameter(validator.wrappedClassName(), "state")
-                        .addStatement(
-                                """
-                                        return new $T(
-                                        this.manager,
-                                        this.targetState,
-                                        state
-                                        )""",
-                                stateToClassName
-                        )
+                        .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
                         .build();
             }
         });
@@ -360,15 +367,7 @@ public class StateMachineGenerator {
                     .addModifiers(Modifier.PRIVATE)
                     .returns(stateLimitedToClassName)
                     .addParameter(stateDataName, "state")
-                    .addStatement(
-                            """
-                                    return new $T(
-                                    this.manager,
-                                    this.targetState,
-                                    state
-                                    )""",
-                            stateLimitedToClassName
-                    )
+                    .addStatement("return new $T(this.manager, this.targetState, state)", stateLimitedToClassName)
                     .build();
 
             toMethods.add(method);
@@ -471,6 +470,31 @@ public class StateMachineGenerator {
                 )
         );
 
+        var failLoudlyMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                stateDataName,
+                ParameterizedTypeName.get(
+                        ClassName.get(Set.class),
+                        stateDataName
+                )
+        );
+        FieldSpec failLoudlyMap = FieldSpec
+                .builder(failLoudlyMapType, "failLoudlyMap")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T()", HashMap.class)
+                .build();
+
+        var failLoudlyCacheType = ParameterizedTypeName.get(
+                ClassName.get(Set.class),
+                stateDataName
+        );
+
+        FieldSpec failLoudlyCache = FieldSpec
+                .builder(failLoudlyCacheType, "failLoudlyCache")
+                .addModifiers(Modifier.PRIVATE)
+                .initializer("new $T()", HashSet.class)
+                .build();
+
         FieldSpec transitionCommandMap = FieldSpec
                 .builder(transitionCommandMapType, "transitionCommandMap")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
@@ -566,7 +590,7 @@ public class StateMachineGenerator {
                 CodeBlock.Builder code = CodeBlock
                         .builder()
                         .add("this(new $T(", validator.originalTypeName())
-                        .add(validator.emitFieldNames(fields, Function.identity(),  false))
+                        .add(validator.emitFieldNames(fields, Function.identity(), false))
                         .add("));");
 
                 constructorBuilder.addCode(code.build());
@@ -725,7 +749,7 @@ public class StateMachineGenerator {
                 .methodBuilder("poll")
                 .addModifiers(Modifier.PUBLIC);
 
-        if(validator instanceof RecordValidator rv && rv.robotStatePresent) {
+        if (validator instanceof RecordValidator rv && rv.robotStatePresent) {
             pollMethodBuilder.addStatement("this.controlWord.refresh()");
         }
 
@@ -753,16 +777,16 @@ public class StateMachineGenerator {
             var subDataType = rv.fieldToInnerClass.get(List.of(robotStateName));
 
             getNextStateMethodBuilder.addCode("""
-                    if(currentState.$1L() != RobotState.DISABLED && this.controlWord.isDisabled()) {
-                        return new $2L(RobotState.DISABLED);
-                    } else if(currentState.$1L() != RobotState.AUTO && this.controlWord.isAutonomousEnabled()) {
-                        return new $2L(RobotState.AUTO);
-                    } else if(currentState.$1L() != RobotState.TELEOP && this.controlWord.isTeleopEnabled()) {
-                        return new $2L(RobotState.TELEOP);
-                    } else if(currentState.$1L() != RobotState.TEST && this.controlWord.isTest()) {
-                        return new $2L(RobotState.TEST);
-                    }
-                    \n""",
+                            if(currentState.$1L() != RobotState.DISABLED && this.controlWord.isDisabled()) {
+                                return new $2L(RobotState.DISABLED);
+                            } else if(currentState.$1L() != RobotState.AUTO && this.controlWord.isAutonomousEnabled()) {
+                                return new $2L(RobotState.AUTO);
+                            } else if(currentState.$1L() != RobotState.TELEOP && this.controlWord.isTeleopEnabled()) {
+                                return new $2L(RobotState.TELEOP);
+                            } else if(currentState.$1L() != RobotState.TEST && this.controlWord.isTest()) {
+                                return new $2L(RobotState.TEST);
+                            }
+                            \n""",
                     fieldName,
                     subDataType);
         }
@@ -793,7 +817,7 @@ public class StateMachineGenerator {
                             \n""",
                     stateDataName
             );
-        } else if(validator instanceof EnumValidator ev && ev.supportsStateTransition()){
+        } else if (validator instanceof EnumValidator ev && ev.supportsStateTransition()) {
             updateStateMethodBuilder.addStatement("currentState.attemptTransitionTo(nextStateData)");
         }
 
@@ -822,7 +846,7 @@ public class StateMachineGenerator {
                 var fieldName = rv.fieldNameMap.get(type);
                 var otherData = CodeBlock.of("$1LData", fieldName);
 
-                if(rv.nestedRecords.containsKey(type)) {
+                if (rv.nestedRecords.containsKey(type)) {
                     var dataType = rv.nestedRecords.get(type);
                     otherData = CodeBlock.of("$1T.toRecord($2LData)", dataType, fieldName);
                 } else if (rv.nestedInterfaces.containsKey(type)) {
@@ -842,12 +866,25 @@ public class StateMachineGenerator {
         }
 
         updateStateMethodBuilder
-                .addStatement("var nextStates = generateToSubDataStates(nextState)")
-                .addStatement("runTransitionCommands(nextStates)")
-                .addStatement("this.currentState = nextState")
-                .addStatement("this.currentSubData = generateFromSubDataStates(this.currentState)")
-                .addStatement("this.regenerateTransitionWhenCache()")
-                .addStatement("this.regenerateCommandCache()");
+                .addCode("""
+                                var nextStates = generateToSubDataStates(nextState);
+                                runTransitionCommands(nextStates);
+                                
+                                if(! $1T.disjoint(failLoudlyCache, nextStates)) {
+                                    var failLoudly = new $2T("State transition was requested to fail loudly");
+                                
+                                    throw new $3T(currentState, nextState, failLoudly);
+                                }
+                                
+                                this.currentState = nextState;
+                                this.currentSubData = generateFromSubDataStates(this.currentState);
+                                this.regenerateTransitionWhenCache();
+                                this.regenerateCommandCache();
+                                this.regenerateFailLoudlyCache();
+                                """,
+                        Collections.class,
+                        FailLoudlyException.class,
+                        InvalidStateTransition.class);
 
         MethodSpec updateStateMethod = updateStateMethodBuilder.build();
 
@@ -1003,6 +1040,23 @@ public class StateMachineGenerator {
                         ArrayList.class)
                 .build();
 
+        MethodSpec regenerateFailLoudlyCacheMethod = MethodSpec
+                .methodBuilder("regenerateFailLoudlyCache")
+                .addModifiers(Modifier.PRIVATE)
+                .addCode("""
+                                this.failLoudlyCache = new $1T<>();
+                                
+                                this.currentSubData.forEach(state -> {
+                                    if (!this.failLoudlyMap.containsKey(state)) {
+                                        return;
+                                    }
+                                
+                                    this.failLoudlyCache.addAll(this.failLoudlyMap.get(state));
+                                });
+                                """,
+                        HashSet.class)
+                .build();
+
         TypeSpec.Builder typeBuilder = TypeSpec
                 .classBuilder(stateMachineClassName)
                 .addModifiers(Modifier.PUBLIC)
@@ -1013,9 +1067,11 @@ public class StateMachineGenerator {
                 .addField(transitionWhenCache)
                 .addField(transitionCommandMap)
                 .addField(transitionCommandCache)
+                .addField(failLoudlyMap)
+                .addField(failLoudlyCache)
                 .addField(triggerMap);
 
-        if(controlWord != null) {
+        if (controlWord != null) {
             typeBuilder.addField(controlWord);
         }
 
@@ -1060,7 +1116,8 @@ public class StateMachineGenerator {
 
         typeBuilder
                 .addMethod(regenerateTransitionWhenCacheMethod)
-                .addMethod(regenerateCommandCacheMethod);
+                .addMethod(regenerateCommandCacheMethod)
+                .addMethod(regenerateFailLoudlyCacheMethod);
 
         typeBuilder.addType(internalStateManager);
 

@@ -30,14 +30,14 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void initialState() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         assertEquals(BasicEnum.START, machine.currentState());
     }
 
     @Test
     void whenClause() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         final AtomicBoolean test = new AtomicBoolean(false);
 
@@ -68,7 +68,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void always() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         // Set up our state machine transition
         machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
@@ -85,7 +85,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void commandInitialize() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         final AtomicBoolean test = new AtomicBoolean(false);
 
@@ -113,7 +113,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void commandRun() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         final AtomicBoolean test = new AtomicBoolean(false);
 
@@ -146,7 +146,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void invalidTransition() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         // START -> END is invalid and should fail immediately
         assertThrows(
@@ -157,7 +157,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void oneTransitionAtATime() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         // Set up two transitions to always run
         machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
@@ -185,7 +185,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void basicTrigger() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         // Create our trigger
         Trigger trigger = machine.state(BasicEnum.STATE_A).trigger();
@@ -202,7 +202,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void triggerDefaultEventLoop() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         final AtomicBoolean test = new AtomicBoolean(false);
 
@@ -225,7 +225,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void triggerCustomEventLoop() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         final AtomicBoolean test = new AtomicBoolean(false);
 
@@ -257,7 +257,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void triggerOnlyRunsOnChange() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         final AtomicBoolean test = new AtomicBoolean(false);
 
@@ -279,7 +279,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void transitionToCommand() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         // Create our command
         Command command = machine.transitionTo(BasicEnum.STATE_A);
@@ -295,7 +295,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void transitionToCommandOnlyRunsOnce() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         // Create our command
         Command command = machine.transitionTo(BasicEnum.STATE_A);
@@ -326,7 +326,7 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void runPollCommand() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
 
         // Set up our state machine transition
         machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
@@ -350,14 +350,29 @@ public class BasicEnumStateMachineTest {
 
     @Test
     void invalidTransitionCannotBeForced() {
-        BasicEnumStateMachine machine = new BasicEnumStateMachine(BasicEnum.START);
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
         CommandScheduler.getInstance().schedule(machine.runPollCommand());
 
         // This is an invalid transition
         Command command = machine.transitionTo(BasicEnum.END);
 
-        assertThrows(InvalidStateTransition.class, command::schedule);
+        assertThrows(InvalidStateTransition.class, () -> CommandScheduler.getInstance().schedule(command));
 
         assertEquals(BasicEnum.START, machine.currentState());
+    }
+
+    /**
+     * Normally, you wouldn't transitionAlways and failLoudly on the same set of states. It can be useful at times when
+     * you may know a particular transition is dangerous, and it would be entirely safer to crash the robot's software
+     * stack than to risk the robot doing something physically dangerous.
+     */
+    @Test
+    void failLoudlyPreventsOtherwiseSafeTransitions() {
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).failLoudly();
+
+        assertThrows(InvalidStateTransition.class, machine::poll);
     }
 }
