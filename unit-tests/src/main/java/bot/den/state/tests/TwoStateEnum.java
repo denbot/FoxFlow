@@ -1,10 +1,10 @@
 package bot.den.state.tests;
 
-import bot.den.state.CanTransitionState;
+import bot.den.state.LimitsStateTransitions;
 
 import java.util.Set;
 
-public enum TwoStateEnum implements CanTransitionState<TwoStateEnum> {
+public enum TwoStateEnum implements LimitsStateTransitions<TwoStateEnum> {
     A,
     B;
 

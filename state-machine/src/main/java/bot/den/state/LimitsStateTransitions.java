@@ -2,7 +2,7 @@ package bot.den.state;
 
 import bot.den.state.exceptions.InvalidStateTransition;
 
-public interface CanTransitionState<T> {
+public interface LimitsStateTransitions<T> {
     boolean canTransitionTo(T newState);
 
     default void attemptTransitionTo(T newState) throws InvalidStateTransition {

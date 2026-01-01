@@ -1,6 +1,6 @@
 package bot.den.state.validator;
 
-import bot.den.state.CanTransitionState;
+import bot.den.state.LimitsStateTransitions;
 import bot.den.state.Environment;
 import bot.den.state.Util;
 import com.palantir.javapoet.ClassName;
@@ -51,9 +51,9 @@ public class InterfaceValidator implements Validator {
     }
 
     private TypeSpec createRecordWrapper() {
-        ParameterizedTypeName canTransitionState = ParameterizedTypeName
+        ParameterizedTypeName limitsStateTransitions = ParameterizedTypeName
                 .get(
-                        ClassName.get(CanTransitionState.class),
+                        ClassName.get(LimitsStateTransitions.class),
                         wrappedTypeName
                 );
 
@@ -82,12 +82,12 @@ public class InterfaceValidator implements Validator {
                         }
                         return false;
                         """,
-                        CanTransitionState.class)
+                        LimitsStateTransitions.class)
                 .build();
 
         return TypeSpec
                 .recordBuilder(wrappedTypeName)
-                .addSuperinterface(canTransitionState)
+                .addSuperinterface(limitsStateTransitions)
                 .recordConstructor(constructor)
                 .addMethod(fromRecord)
                 .addMethod(canTransitionTo)

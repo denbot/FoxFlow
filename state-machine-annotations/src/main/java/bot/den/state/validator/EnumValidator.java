@@ -1,6 +1,6 @@
 package bot.den.state.validator;
 
-import bot.den.state.CanTransitionState;
+import bot.den.state.LimitsStateTransitions;
 import bot.den.state.Environment;
 import com.palantir.javapoet.ClassName;
 
@@ -24,7 +24,7 @@ public class EnumValidator implements Validator {
 
         var typeUtils = environment.processingEnvironment().getTypeUtils();
 
-        ClassName transitionStateClassName = ClassName.get(CanTransitionState.class);
+        ClassName transitionStateClassName = ClassName.get(LimitsStateTransitions.class);
 
         var interfaces = typeElement.getInterfaces();
         for (TypeMirror i : interfaces) {

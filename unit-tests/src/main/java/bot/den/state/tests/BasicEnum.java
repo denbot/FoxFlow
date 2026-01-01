@@ -1,12 +1,12 @@
 package bot.den.state.tests;
 
-import bot.den.state.CanTransitionState;
+import bot.den.state.LimitsStateTransitions;
 import bot.den.state.StateMachine;
 
 import java.util.Set;
 
 @StateMachine
-public enum BasicEnum implements CanTransitionState<BasicEnum> {
+public enum BasicEnum implements LimitsStateTransitions<BasicEnum> {
     START,
     STATE_A,
     STATE_B,

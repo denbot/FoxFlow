@@ -1,6 +1,6 @@
 package bot.den.state.validator;
 
-import bot.den.state.CanTransitionState;
+import bot.den.state.LimitsStateTransitions;
 import bot.den.state.Environment;
 import bot.den.state.RobotState;
 import bot.den.state.Util;
@@ -297,9 +297,9 @@ public class RecordValidator implements Validator {
     }
 
     private TypeSpec createRecordWrapper() {
-        ParameterizedTypeName canTransitionState = ParameterizedTypeName
+        ParameterizedTypeName limitsStateTransitions = ParameterizedTypeName
                 .get(
-                        ClassName.get(CanTransitionState.class),
+                        ClassName.get(LimitsStateTransitions.class),
                         wrappedTypeName
                 );
 
@@ -309,7 +309,7 @@ public class RecordValidator implements Validator {
         */
         TypeSpec.Builder recordInterfaceBuilder = TypeSpec
                 .interfaceBuilder(wrappedTypeName)
-                .addSuperinterface(canTransitionState);
+                .addSuperinterface(limitsStateTransitions);
 
         for (List<ClassName> types : permutations) {
             // Inner classes that hold subsets of our data for easy passing around and manipulation
