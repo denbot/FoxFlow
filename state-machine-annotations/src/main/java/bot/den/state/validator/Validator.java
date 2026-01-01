@@ -9,6 +9,8 @@ public interface Validator {
 
     ClassName wrappedClassName();
 
+    boolean supportsStateTransition();
+
     <R> List<R> visitTopLevel(Visitor<R> visitor);
 
     <R> List<R> visitPermutations(Visitor<R> visitor);

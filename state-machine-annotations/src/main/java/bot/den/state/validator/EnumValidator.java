@@ -16,6 +16,7 @@ import java.util.stream.Stream;
 
 public class EnumValidator implements Validator {
     private final ClassName originalTypeName;
+    private final boolean implementsStateTransitionInterface;
 
     public EnumValidator(Environment environment) {
         var typeElement = environment.element();
@@ -55,11 +56,11 @@ public class EnumValidator implements Validator {
             }
 
             // At this point, that enum is correctly implemented
+            implementsStateTransitionInterface = true;
             return;
         }
 
-        // This enum didn't have the HasStateTransitions interface
-        throw new RuntimeException(transitionStateClassName + " must be implemented for " + typeElement);
+        implementsStateTransitionInterface = false;
     }
 
     @Override
@@ -70,6 +71,11 @@ public class EnumValidator implements Validator {
     @Override
     public ClassName wrappedClassName() {
         throw new UnsupportedOperationException("Enum validator does not wrap the class name");
+    }
+
+    @Override
+    public boolean supportsStateTransition() {
+        return implementsStateTransitionInterface;
     }
 
     @Override

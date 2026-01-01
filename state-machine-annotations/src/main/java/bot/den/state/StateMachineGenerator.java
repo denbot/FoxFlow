@@ -790,7 +790,7 @@ public class StateMachineGenerator {
                             \n""",
                     stateDataName
             );
-        } else {
+        } else if(validator instanceof EnumValidator ev && ev.supportsStateTransition()){
             updateStateMethodBuilder.addStatement("currentState.attemptTransitionTo(nextStateData)");
         }
 

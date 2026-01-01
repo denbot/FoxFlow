@@ -35,6 +35,12 @@ public class InterfaceValidator implements Validator {
     }
 
     @Override
+    public boolean supportsStateTransition() {
+        // All interface classes support transition because we create a new data wrapper
+        return true;
+    }
+
+    @Override
     public <R> List<R> visitTopLevel(Visitor<R> visitor) {
         throw new UnsupportedOperationException("Not currently supported on interfaces");
     }

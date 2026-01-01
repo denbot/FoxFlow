@@ -27,6 +27,8 @@ public class RecordValidator implements Validator {
     public final Map<ClassName, ClassName> nestedRecords = new HashMap<>();
     public final Map<ClassName, ClassName> nestedInterfaces = new HashMap<>();
 
+    private final Map<ClassName, Boolean> supportsStateTransition;
+
     private final ClassName originalTypeName;
     private final ClassName wrappedTypeName;
     private final ClassName robotStateName;
@@ -110,6 +112,13 @@ public class RecordValidator implements Validator {
                 .stream()
                 .map(Validator::originalTypeName)
                 .toList();
+
+        supportsStateTransition = validators
+                .stream()
+                .collect(Collectors.toMap(
+                        Validator::originalTypeName,
+                        Validator::supportsStateTransition
+                ));
 
         fieldNameMap = new HashMap<>();
         for (var component : recordComponents) {
@@ -256,6 +265,12 @@ public class RecordValidator implements Validator {
     }
 
     @Override
+    public boolean supportsStateTransition() {
+        // All record classes support transition because we create a new data wrapper
+        return true;
+    }
+
+    @Override
     public <R> List<R> visitTopLevel(Visitor<R> visitor) {
         return Stream.of(
                         visitor.acceptUserDataType(),
@@ -297,26 +312,13 @@ public class RecordValidator implements Validator {
                 .addSuperinterface(canTransitionState);
 
         for (List<ClassName> types : permutations) {
+            // Inner classes that hold subsets of our data for easy passing around and manipulation
             MethodSpec.Builder recordConstructor = MethodSpec
                     .constructorBuilder();
 
-            // canTransitionTo override
-            MethodSpec.Builder canBeComparedMethodBuilder = MethodSpec
-                    .methodBuilder("canTransitionTo")
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC)
-                    .returns(boolean.class)
-                    .addParameter(wrappedTypeName, "data");
+            List<CodeBlock> attemptTransitions = new ArrayList<>();
+            List<CodeBlock> compareTransitions = new ArrayList<>();
 
-            // attemptTransitionTo override
-            MethodSpec.Builder attemptTransitionToBuilder = MethodSpec
-                    .methodBuilder("attemptTransitionTo")
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(wrappedTypeName, "data")
-                    .beginControlFlow("try");
-
-            // Inner classes that hold subsets of our data for easy passing around and manipulation
             for (ClassName typeName : types) {
                 // Add the type parameter to the constructor
                 String fieldName = fieldNameMap.get(typeName);
@@ -329,47 +331,70 @@ public class RecordValidator implements Validator {
 
                 recordConstructor.addParameter(dataTypeName, fieldName);
 
-                canBeComparedMethodBuilder.addCode(
-                        """
-                                $3T $1LField = $2L(data);
-                                if($1LField != null && !this.$1L.canTransitionTo($1LField)) return false;
-                                """,
-                        fieldName,
-                        "get" + Util.ucfirst(fieldName),
-                        dataTypeName
-                );
+                var checkStateTransition = supportsStateTransition.get(typeName);
+                if (checkStateTransition) {
+                    compareTransitions.add(CodeBlock.of(
+                            """
+                                    $3T $1LField = $2L(data);
+                                    if($1LField != null && !this.$1L.canTransitionTo($1LField)) return false;
+                                    """,
+                            fieldName,
+                            "get" + Util.ucfirst(fieldName),
+                            dataTypeName
+                    ));
 
-                attemptTransitionToBuilder.addCode(
-                        """
-                                $3T $1LField = $2L(data);
-                                if($1LField != null) this.$1L.attemptTransitionTo($1LField);
-                                """,
-                        fieldName,
-                        "get" + Util.ucfirst(fieldName),
-                        dataTypeName
-                );
+                    attemptTransitions.add(CodeBlock.of(
+                            """
+                                    $3T $1LField = $2L(data);
+                                    if($1LField != null) this.$1L.attemptTransitionTo($1LField);
+                                    """,
+                            fieldName,
+                            "get" + Util.ucfirst(fieldName),
+                            dataTypeName
+                    ));
+                }
             }
 
-            canBeComparedMethodBuilder.addStatement("return true");
-            attemptTransitionToBuilder
-                    .addCode("\n")
+            // canTransitionTo override
+            MethodSpec canBeComparedMethod = MethodSpec
+                    .methodBuilder("canTransitionTo")
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(boolean.class)
+                    .addParameter(wrappedTypeName, "data")
+                    .addCode(compareTransitions.stream().collect(CodeBlock.joining("\n")))
+                    .addStatement("return true")
+                    .build();
+
+            // attemptTransitionTo override
+            MethodSpec attemptTransitionTo = MethodSpec
+                    .methodBuilder("attemptTransitionTo")
+                    .addAnnotation(Override.class)
+                    .addModifiers(Modifier.PUBLIC)
+                    .addParameter(wrappedTypeName, "data")
+                    .beginControlFlow("try")
+                    .addCode(attemptTransitions.stream().collect(CodeBlock.joining("\n")))
                     .nextControlFlow("catch ($T ex)", InvalidStateTransition.class)
                     .addStatement("throw new $T(this, data, ex)", InvalidStateTransition.class)
-                    .endControlFlow();
+                    .endControlFlow()
+                    .build();
 
 
             ClassName nestedName = fieldToInnerClass.get(types);
 
-            TypeSpec innerClass = TypeSpec
+            TypeSpec.Builder innerClass = TypeSpec
                     .recordBuilder(nestedName)
                     .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                     .recordConstructor(recordConstructor.build())
                     .addSuperinterface(wrappedTypeName)
-                    .addMethod(canBeComparedMethodBuilder.build())
-                    .addMethod(attemptTransitionToBuilder.build())
-                    .build();
+                    .addMethod(canBeComparedMethod);
 
-            recordInterfaceBuilder.addType(innerClass);
+            // No point in even adding the method if it's just going to be an empty try statement
+            if(! attemptTransitions.isEmpty()) {
+                innerClass.addMethod(attemptTransitionTo);
+            }
+
+            recordInterfaceBuilder.addType(innerClass.build());
         }
 
         // Next up, we need a helper method for each of the original record fields that help us with comparing if states can transition
