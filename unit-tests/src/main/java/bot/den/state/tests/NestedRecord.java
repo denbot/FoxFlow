@@ -17,7 +17,7 @@ public record NestedRecord(
         NestedRecordOuter state
         ) {
     // This, of course, is to add insult to injury.
-    record NestedRecordOuter(BasicEnum data, TwoStateEnum state) {
+    record NestedRecordOuter(BasicEnum data, MultiStateEnum state) {
 
     }
 }

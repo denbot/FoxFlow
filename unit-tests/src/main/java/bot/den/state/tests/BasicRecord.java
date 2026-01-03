@@ -4,7 +4,7 @@ import bot.den.state.StateMachine;
 
 @StateMachine
 public record BasicRecord(
-        TwoStateEnum twoState,
+        MultiStateEnum multiState,
         BasicEnum basic,
         InnerEnum inner
 ) {

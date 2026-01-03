@@ -1,6 +1,7 @@
 package bot.den.state.tests;
 
 import bot.den.state.exceptions.InvalidStateTransition;
+import bot.den.state.tests.BasicRecord.InnerEnum;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -20,7 +21,7 @@ public class BasicRecordStateMachineTest {
         assertTrue(HAL.initialize(500, 0));
 
         this.machine = new BasicRecordStateMachine(
-                TwoStateEnum.A,
+                MultiStateEnum.A,
                 BasicEnum.START,
                 BasicRecord.InnerEnum.STAR
         );
@@ -39,7 +40,7 @@ public class BasicRecordStateMachineTest {
         // Technically we create the machine in `setup`, but we do want to verify the state here
 
         var state = this.machine.currentState();
-        assertEquals(TwoStateEnum.A, state.twoState());
+        assertEquals(MultiStateEnum.A, state.multiState());
         assertEquals(BasicEnum.START, state.basic());
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
     }
@@ -50,7 +51,7 @@ public class BasicRecordStateMachineTest {
 
         // Verify nothing changed
         var state = this.machine.currentState();
-        assertEquals(TwoStateEnum.A, state.twoState());
+        assertEquals(MultiStateEnum.A, state.multiState());
         assertEquals(BasicEnum.START, state.basic());
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
 
@@ -59,18 +60,18 @@ public class BasicRecordStateMachineTest {
 
         // Verify the new state
         state = this.machine.currentState();
-        assertEquals(TwoStateEnum.A, state.twoState());
+        assertEquals(MultiStateEnum.A, state.multiState());
         assertEquals(BasicEnum.STATE_A, state.basic());
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
     }
 
     @Test
     void canTransitionDifferentComponentsUsingPartialSpecifiers() {
-        this.machine.state(BasicEnum.START).to(TwoStateEnum.B).transitionAlways();
+        this.machine.state(BasicEnum.START).to(MultiStateEnum.B).transitionAlways();
 
         // Verify nothing changed
         var state = this.machine.currentState();
-        assertEquals(TwoStateEnum.A, state.twoState());
+        assertEquals(MultiStateEnum.A, state.multiState());
         assertEquals(BasicEnum.START, state.basic());
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
 
@@ -79,7 +80,7 @@ public class BasicRecordStateMachineTest {
 
         // Verify the new state
         state = this.machine.currentState();
-        assertEquals(TwoStateEnum.B, state.twoState());
+        assertEquals(MultiStateEnum.B, state.multiState());
         assertEquals(BasicEnum.START, state.basic());
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
     }
@@ -88,7 +89,7 @@ public class BasicRecordStateMachineTest {
     void canLimitTransitionUsingMultipleSpecifiers() {
         // This shouldn't transition until the state has both of the required states
         this.machine
-                .state(TwoStateEnum.B, BasicEnum.STATE_A)
+                .state(MultiStateEnum.B, BasicEnum.STATE_A)
                 .to(BasicRecord.InnerEnum.CIRCLE)
                 .transitionAlways();
 
@@ -97,17 +98,17 @@ public class BasicRecordStateMachineTest {
 
         // Verify nothing changed
         var state = this.machine.currentState();
-        assertEquals(TwoStateEnum.A, state.twoState());
+        assertEquals(MultiStateEnum.A, state.multiState());
         assertEquals(BasicEnum.START, state.basic());
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
 
         // Force a transition for one part of the specifier
-        var twoStateCommand = this.machine.transitionTo(TwoStateEnum.B);
+        var twoStateCommand = this.machine.transitionTo(MultiStateEnum.B);
         CommandScheduler.getInstance().schedule(twoStateCommand);
 
         // Verify our partial state change
         state = this.machine.currentState();
-        assertEquals(TwoStateEnum.B, state.twoState());
+        assertEquals(MultiStateEnum.B, state.multiState());
         assertEquals(BasicEnum.START, state.basic());
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
 
@@ -117,7 +118,7 @@ public class BasicRecordStateMachineTest {
 
         // Verify our partial state change
         state = this.machine.currentState();
-        assertEquals(TwoStateEnum.B, state.twoState());
+        assertEquals(MultiStateEnum.B, state.multiState());
         assertEquals(BasicEnum.STATE_A, state.basic());
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
 
@@ -126,7 +127,7 @@ public class BasicRecordStateMachineTest {
 
         // Verify the final change
         state = this.machine.currentState();
-        assertEquals(TwoStateEnum.B, state.twoState());
+        assertEquals(MultiStateEnum.B, state.multiState());
         assertEquals(BasicEnum.STATE_A, state.basic());
         assertEquals(BasicRecord.InnerEnum.CIRCLE, state.inner());
     }
@@ -140,7 +141,7 @@ public class BasicRecordStateMachineTest {
         // Make sure it isn't already triggered
         assertFalse(trigger.getAsBoolean());
 
-        var firstCommand = this.machine.transitionTo(TwoStateEnum.B, BasicEnum.STATE_A);
+        var firstCommand = this.machine.transitionTo(MultiStateEnum.B, BasicEnum.STATE_A);
         CommandScheduler.getInstance().schedule(firstCommand);
 
         // Trigger shouldn't be active yet even though it partially matches
@@ -253,5 +254,64 @@ public class BasicRecordStateMachineTest {
 
         // Command should not run when failLoudly prevents the transition
         assertFalse(commandRan.get());
+    }
+
+    @Test
+    void independentTransitionsProcessInSamePoll() {
+        // These are two transitions set up separately, but they are independent of each other and should move together
+        this.machine.state(MultiStateEnum.A).to(MultiStateEnum.B).transitionAlways();
+        this.machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+
+        this.machine.poll();
+
+        // After a single poll, they both should match
+        assertEquals(MultiStateEnum.B, this.machine.currentState().multiState());
+        assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
+    }
+
+    @Test
+    void independentTransitionChoosesTheLargestStateToTransitionOn() {
+        // These are two transitions set up separately, but specifying two states in the second qualifier means that one wins
+        // It is important to note that having the same transition function causes them to filter out at the caching stage
+        this.machine.state(MultiStateEnum.A).to(MultiStateEnum.B).transitionAlways();
+        this.machine.state(MultiStateEnum.A, BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+
+        this.machine.poll();
+
+        // After a single poll, only the one should have moved
+        assertEquals(MultiStateEnum.A, this.machine.currentState().multiState());
+        assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
+    }
+
+    @Test
+    void independentTransitionChoosesLargestStateToTransitionOn() {
+        AtomicBoolean test = new AtomicBoolean(true);
+
+        // These are two transitions set up separately, but specifying two states in the second qualifier means that one wins
+        // It is important to note that having differnt transition function causes them to combine in th get nextStage
+        this.machine.state(MultiStateEnum.A, BasicEnum.START, InnerEnum.STAR).to(MultiStateEnum.B).transitionAlways();
+        this.machine.state(MultiStateEnum.A, BasicEnum.START).to(MultiStateEnum.C).transitionWhen(test::get);
+
+        this.machine.poll();
+
+        // The one with more specifiers should have won
+        assertEquals(MultiStateEnum.B, this.machine.currentState().multiState());
+        assertEquals(BasicEnum.START, this.machine.currentState().basic());
+        assertEquals(InnerEnum.STAR, this.machine.currentState().inner());
+    }
+
+    /**
+     * This test was added because we realized the "state" or "to" methods were not created for this particular
+     * permutation of our record components.
+     */
+    @Test
+    void verifyAllRecordsGetCreated() {
+        this.machine.state(MultiStateEnum.A, InnerEnum.STAR).to(MultiStateEnum.B, InnerEnum.CIRCLE).transitionAlways();
+
+        this.machine.poll();
+
+        assertEquals(MultiStateEnum.B, this.machine.currentState().multiState());
+        assertEquals(BasicEnum.START, this.machine.currentState().basic());
+        assertEquals(InnerEnum.CIRCLE, this.machine.currentState().inner());
     }
 }

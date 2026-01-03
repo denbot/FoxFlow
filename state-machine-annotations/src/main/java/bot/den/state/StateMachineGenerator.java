@@ -3,6 +3,7 @@ package bot.den.state;
 import bot.den.state.exceptions.FailLoudlyException;
 import bot.den.state.exceptions.InvalidStateTransition;
 import bot.den.state.validator.EnumValidator;
+import bot.den.state.validator.InterfaceValidator;
 import bot.den.state.validator.RecordValidator;
 import bot.den.state.validator.Validator;
 import com.palantir.javapoet.*;
@@ -462,7 +463,10 @@ public class StateMachineGenerator {
         var transitionWhenCacheType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 ClassName.get(BooleanSupplier.class),
-                stateDataName
+                ParameterizedTypeName.get(
+                        ClassName.get(List.class),
+                        validator.pairClassName()
+                )
         );
 
         FieldSpec transitionWhenCache = FieldSpec
@@ -765,61 +769,145 @@ public class StateMachineGenerator {
 
         MethodSpec.Builder pollMethodBuilder = MethodSpec
                 .methodBuilder("poll")
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC)
+                .addStatement("$T nextState = this.getNextState()", stateDataName);
 
         if (validator instanceof RecordValidator rv && rv.robotStatePresent) {
-            pollMethodBuilder.addStatement("this.controlWord.refresh()");
+            pollMethodBuilder.addCode(
+                    """
+                            this.controlWord.refresh();
+                            $1T nextRobotState = null;
+                            if(currentState.robotState() != RobotState.DISABLED && this.controlWord.isDisabled()) {
+                                nextRobotState = new $2T(RobotState.DISABLED);
+                            } else if(currentState.robotState() != RobotState.AUTO && this.controlWord.isAutonomousEnabled()) {
+                                nextRobotState = new $2T(RobotState.AUTO);
+                            } else if(currentState.robotState() != RobotState.TELEOP && this.controlWord.isTeleopEnabled()) {
+                                nextRobotState = new $2T(RobotState.TELEOP);
+                            } else if(currentState.robotState() != RobotState.TEST && this.controlWord.isTest()) {
+                                nextRobotState = new $2T(RobotState.TEST);
+                            }
+                            
+                            if(nextState != null) {
+                                if(nextRobotState != null) {
+                                    nextState = nextState.merge(nextRobotState);
+                                }
+                            } else {
+                                nextState = nextRobotState;
+                            }
+                            """,
+                    stateDataName,
+                    rv.fieldToInnerClass.get(List.of(robotStateName)));
         }
 
-        pollMethodBuilder
-                .addCode("""
-                                $T nextState = this.getNextState();
-                                if(nextState == null) {
-                                    return;
-                                }
-                                
-                                this.updateState(nextState);
-                                """,
-                        stateDataName
-                );
+        pollMethodBuilder.addCode(
+                """
+                        if(nextState == null) {
+                            return;
+                        }
+                        
+                        this.updateState(nextState);
+                        """);
 
         MethodSpec pollMethod = pollMethodBuilder.build();
+
+        var pairList = ParameterizedTypeName.get(
+                ClassName.get(List.class),
+                validator.pairClassName()
+        );
+        var pairSet = ParameterizedTypeName.get(
+                ClassName.get(Set.class),
+                validator.pairClassName()
+        );
 
         MethodSpec.Builder getNextStateMethodBuilder = MethodSpec
                 .methodBuilder("getNextState")
                 .addModifiers(Modifier.PRIVATE)
-                .returns(stateDataName);
-
-        if (validator instanceof RecordValidator rv && rv.robotStatePresent) {
-            var fieldName = rv.fieldNameMap.get(robotStateName);
-            var subDataType = rv.fieldToInnerClass.get(List.of(robotStateName));
-
-            getNextStateMethodBuilder.addCode("""
-                            if(currentState.$1L() != RobotState.DISABLED && this.controlWord.isDisabled()) {
-                                return new $2L(RobotState.DISABLED);
-                            } else if(currentState.$1L() != RobotState.AUTO && this.controlWord.isAutonomousEnabled()) {
-                                return new $2L(RobotState.AUTO);
-                            } else if(currentState.$1L() != RobotState.TELEOP && this.controlWord.isTeleopEnabled()) {
-                                return new $2L(RobotState.TELEOP);
-                            } else if(currentState.$1L() != RobotState.TEST && this.controlWord.isTest()) {
-                                return new $2L(RobotState.TEST);
-                            }
-                            \n""",
-                    fieldName,
-                    subDataType);
-        }
-
-        getNextStateMethodBuilder
+                .returns(stateDataName)
+                .addComment("Map of our input specifiers to list of valid outputs")
                 .addCode("""
-                        for(var supplier : this.transitionWhenCache.keySet()) {
-                            if(supplier.getAsBoolean()) {
-                                return this.transitionWhenCache.get(supplier);
-                            }
-                        }
-                        
-                        return null;
-                        """
+                                $1T possibleOptions = new $2T();
+                                for(var entry : this.transitionWhenCache.entrySet()) {
+                                    var supplier = entry.getKey();
+                                
+                                    if(supplier.getAsBoolean()) {
+                                        possibleOptions.addAll(entry.getValue());
+                                    }
+                                }
+                                
+                                if(possibleOptions.isEmpty()) {
+                                    return null;
+                                } else if(possibleOptions.size() == 1) {
+                                    return possibleOptions.get(0).$3L();
+                                }
+                                """,
+                        pairList,
+                        ArrayList.class,
+                        validator instanceof EnumValidator ? "getSecond" : "b"
                 );
+
+
+        if (validator instanceof RecordValidator) {
+            getNextStateMethodBuilder
+                    .addCode("""
+                                    $1T finalResults = new $2T();
+                                    $4T seen = new $5T(possibleOptions);
+                                    while(!possibleOptions.isEmpty()) {
+                                        $1T mergedResults = new $2T();
+                                    
+                                        $3T option = possibleOptions.remove(0);
+                                        boolean mergedThisOne = false;
+                                        for(var other : possibleOptions) {
+                                            if(option.equals(other)) {
+                                                continue;
+                                            }
+                                            if(option.a().canMerge(other.a()) && option.b().canMerge(other.b())) {
+                                                var newPair = new $3T(option.a().merge(other.a()), option.b().merge(other.b()));
+                                                if(seen.contains(newPair)) {
+                                                    continue;
+                                                }
+                                    
+                                                mergedResults.add(newPair);
+                                                mergedThisOne = true;
+                                                seen.add(newPair);
+                                            }
+                                        }
+                                    
+                                        if(!mergedThisOne) {
+                                            finalResults.add(option);
+                                        }
+                                    
+                                        possibleOptions.addAll(mergedResults);
+                                    }
+                                    
+                                    // Get the only item
+                                    if(finalResults.size() == 1) {
+                                        return finalResults.get(0).b();
+                                    }
+                                    
+                                    $1T bestOptions = new $2T();
+                                    int bestNumElements = 0;
+                                    for(var option : finalResults) {
+                                        int ourNumElements = option.a().numElements();
+                                        if(ourNumElements < bestNumElements) {
+                                            continue;
+                                        } else if(ourNumElements > bestNumElements) {
+                                            bestOptions = new $2T();
+                                            bestNumElements = ourNumElements;
+                                        }
+                                        bestOptions.add(option);
+                                    }
+                                    
+                                    return bestOptions.get(0).b();
+                                    """,
+                            pairList,
+                            ArrayList.class,
+                            validator.pairClassName(),
+                            pairSet,
+                            HashSet.class
+                    );
+        } else {
+            getNextStateMethodBuilder.addStatement("return null");
+        }
 
         MethodSpec getNextStateMethod = getNextStateMethodBuilder.build();
 
@@ -1014,19 +1102,25 @@ public class StateMachineGenerator {
                                 this.transitionWhenCache = new $1T<>();
                                 
                                 this.currentSubData.forEach(state -> {
-                                    if(! this.transitionWhenMap.containsKey(state)) {
+                                    if (!this.transitionWhenMap.containsKey(state)) {
                                         return;
                                     }
                                 
+                                    for (var fromEntry : this.transitionWhenMap.get(state).entrySet()) {
+                                        for (var supplier : fromEntry.getValue()) {
+                                            if (!this.transitionWhenCache.containsKey(supplier)) {
+                                                this.transitionWhenCache.put(supplier, new $2T());
+                                            }
                                 
-                                    for(var entry : this.transitionWhenMap.get(state).entrySet()) {
-                                        for(var supplier : entry.getValue()) {
-                                            this.transitionWhenCache.put(supplier, entry.getKey());
+                                            this.transitionWhenCache.get(supplier).add(new $3T(state, fromEntry.getKey()));
                                         }
                                     }
                                 });
                                 """,
-                        HashMap.class)
+                        HashMap.class,
+                        ArrayList.class,
+                        validator.pairClassName()
+                )
                 .build();
 
         MethodSpec regenerateCommandCacheMethod = MethodSpec

@@ -5,7 +5,7 @@ import bot.den.state.StateMachine;
 
 @StateMachine
 public record RobotRecord(
-        TwoStateEnum twoState,
+        MultiStateEnum multiState,
         RobotState robotState
 ) {
 }

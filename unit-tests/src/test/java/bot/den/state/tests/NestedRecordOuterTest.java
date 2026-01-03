@@ -19,7 +19,7 @@ public class NestedRecordOuterTest {
         assertTrue(HAL.initialize(500, 0));
 
         this.machine = new NestedRecordOuterStateMachine(
-                new NestedRecordOuter.NestedRecord(TwoStateEnum.A)
+                new NestedRecordOuter.NestedRecord(MultiStateEnum.A)
         );
     }
 
@@ -33,17 +33,17 @@ public class NestedRecordOuterTest {
     void canCreateMachineWithNestedRecord() {
         // Verify initial state
         var state = this.machine.currentState();
-        assertEquals(TwoStateEnum.A, state.nested().twoStateEnum());
+        assertEquals(MultiStateEnum.A, state.nested().multiStateEnum());
     }
 
     @Test
     void canTransitionNestedRecordField() {
         // Force a transition on the nested record field
-        var command = machine.transitionTo(new NestedRecordOuter.NestedRecord(TwoStateEnum.B));
+        var command = machine.transitionTo(new NestedRecordOuter.NestedRecord(MultiStateEnum.B));
         CommandScheduler.getInstance().schedule(command);
 
         // Verify the nested field changed
-        assertEquals(TwoStateEnum.B, this.machine.currentState().nested().twoStateEnum());
+        assertEquals(MultiStateEnum.B, this.machine.currentState().nested().multiStateEnum());
     }
 
     @Test
@@ -52,20 +52,20 @@ public class NestedRecordOuterTest {
 
         // Set up conditional transition on nested record
         this.machine
-                .state(new NestedRecordOuter.NestedRecord(TwoStateEnum.A))
-                .to(new NestedRecordOuter.NestedRecord(TwoStateEnum.B))
+                .state(new NestedRecordOuter.NestedRecord(MultiStateEnum.A))
+                .to(new NestedRecordOuter.NestedRecord(MultiStateEnum.B))
                 .transitionWhen(test::get);
 
         // Verify no transition yet
         machine.poll();
-        assertEquals(TwoStateEnum.A, this.machine.currentState().nested().twoStateEnum());
+        assertEquals(MultiStateEnum.A, this.machine.currentState().nested().multiStateEnum());
 
         // Enable the transition
         test.set(true);
         machine.poll();
 
         // Verify transition occurred
-        assertEquals(TwoStateEnum.B, this.machine.currentState().nested().twoStateEnum());
+        assertEquals(MultiStateEnum.B, this.machine.currentState().nested().multiStateEnum());
     }
 
     @Test
@@ -74,8 +74,8 @@ public class NestedRecordOuterTest {
 
         // Set up transition with command
         this.machine
-                .state(new NestedRecordOuter.NestedRecord(TwoStateEnum.A))
-                .to(new NestedRecordOuter.NestedRecord(TwoStateEnum.B))
+                .state(new NestedRecordOuter.NestedRecord(MultiStateEnum.A))
+                .to(new NestedRecordOuter.NestedRecord(MultiStateEnum.B))
                 .transitionAlways()
                 .run(Commands.runOnce(() -> test.set(true)).ignoringDisable(true));
 
@@ -83,20 +83,20 @@ public class NestedRecordOuterTest {
 
         // Command should have run
         assertTrue(test.get());
-        assertEquals(TwoStateEnum.B, this.machine.currentState().nested().twoStateEnum());
+        assertEquals(MultiStateEnum.B, this.machine.currentState().nested().multiStateEnum());
     }
 
     @Test
     void triggerOnNestedRecordState() {
         // Create trigger for nested record state
         var trigger = this.machine
-                .state(new NestedRecordOuter.NestedRecord(TwoStateEnum.B))
+                .state(new NestedRecordOuter.NestedRecord(MultiStateEnum.B))
                 .trigger();
 
         assertFalse(trigger.getAsBoolean());
 
         // Transition to the target state
-        var command = this.machine.transitionTo(new NestedRecordOuter.NestedRecord(TwoStateEnum.B));
+        var command = this.machine.transitionTo(new NestedRecordOuter.NestedRecord(MultiStateEnum.B));
         CommandScheduler.getInstance().schedule(command);
 
         assertTrue(trigger.getAsBoolean());

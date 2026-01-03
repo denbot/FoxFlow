@@ -1,6 +1,7 @@
 package bot.den.state.validator;
 
 import com.palantir.javapoet.ClassName;
+import com.palantir.javapoet.TypeName;
 
 import java.util.List;
 
@@ -8,6 +9,8 @@ public interface Validator {
     ClassName originalTypeName();
 
     ClassName wrappedClassName();
+
+    TypeName pairClassName();
 
     boolean supportsStateTransition();
 

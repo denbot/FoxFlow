@@ -8,7 +8,7 @@ public record NestedRecordOuter(
         RobotState robotState,
         NestedRecord nested
 ) {
-    record NestedRecord(TwoStateEnum twoStateEnum) {
+    record NestedRecord(MultiStateEnum multiStateEnum) {
 
     }
 }

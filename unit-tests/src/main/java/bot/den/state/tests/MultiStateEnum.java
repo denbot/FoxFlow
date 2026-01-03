@@ -5,7 +5,8 @@ package bot.den.state.tests;
  * implement any limitations. The resulting record data class should also not generate any methods to limit state
  * transitions.
  */
-public enum TwoStateEnum {
+public enum MultiStateEnum {
     A,
-    B;
+    B,
+    C
 }

@@ -34,7 +34,7 @@ public class RobotStateTest {
     @ParameterizedTest
     @MethodSource("robotStateCombinations")
     void robotTransitionWorksAsExpected(RobotState from, RobotState to) {
-        var machine = new RobotRecordStateMachine(TwoStateEnum.A);
+        var machine = new RobotRecordStateMachine(MultiStateEnum.A);
 
         // Tell the driver station sim what state we're in
         setDriverStationState(from);
@@ -60,6 +60,29 @@ public class RobotStateTest {
         assertEquals(to, machine.currentState().robotState());
     }
 
+
+    @ParameterizedTest
+    @MethodSource("robotStateCombinations")
+    void robotTransitionMovesAllFields(RobotState from, RobotState to) {
+        var machine = new RobotRecordStateMachine(MultiStateEnum.A);
+
+        // Make sure the robot and driver station state are correct
+        setDriverStationState(from);
+        if(from != RobotState.DISABLED) {
+            machine.poll();
+        }
+
+        machine.state(MultiStateEnum.A, from).to(MultiStateEnum.B).transitionAlways();
+        machine.state(MultiStateEnum.A).to(MultiStateEnum.C).transitionAlways();  // We should never see this transition
+
+        // Update the driver station state and poll for changes
+        setDriverStationState(to);
+        machine.poll();
+
+        assertEquals(to, machine.currentState().robotState());
+        assertEquals(MultiStateEnum.B, machine.currentState().multiState());
+    }
+
     /**
      * This is a self-contained method that handles updating the Driver Station and ensuring the data is propagated in
      * a way that our code and the test can see it.
@@ -68,7 +91,11 @@ public class RobotStateTest {
      */
     private static void setDriverStationState(RobotState state) {
         switch(state) {
-            case DISABLED -> DriverStationSim.setEnabled(false);
+            case DISABLED -> {
+                DriverStationSim.setEnabled(false);
+                DriverStationSim.setAutonomous(false);
+                DriverStationSim.setTest(false);
+            }
             case AUTO -> {
                 DriverStationSim.setAutonomous(true);
                 DriverStationSim.setTest(false);

@@ -3,6 +3,9 @@ package bot.den.state.validator;
 import bot.den.state.LimitsStateTransitions;
 import bot.den.state.Environment;
 import com.palantir.javapoet.ClassName;
+import com.palantir.javapoet.ParameterizedTypeName;
+import com.palantir.javapoet.TypeName;
+import edu.wpi.first.math.Pair;
 
 import java.util.List;
 import java.util.Objects;
@@ -28,6 +31,15 @@ public class EnumValidator implements Validator {
     @Override
     public ClassName wrappedClassName() {
         throw new UnsupportedOperationException("Enum validator does not wrap the class name");
+    }
+
+    @Override
+    public TypeName pairClassName() {
+        return ParameterizedTypeName.get(
+                ClassName.get(Pair.class),
+                originalTypeName,
+                originalTypeName
+        );
     }
 
     @Override

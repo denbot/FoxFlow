@@ -17,10 +17,12 @@ public class InterfaceValidator implements Validator {
     public final List<TypeSpec> typesToWrite = new ArrayList<>();
     private final ClassName originalTypeName;
     private final ClassName wrappedTypeName;
+    private final ClassName pairName;
 
     public InterfaceValidator(Environment environment) {
         originalTypeName = ClassName.get(environment.element());
         wrappedTypeName = Util.getUniqueClassName(originalTypeName.peerClass(originalTypeName.simpleName() + "Data"));
+        pairName = wrappedTypeName.nestedClass("Pair");
 
         typesToWrite.add(createRecordWrapper());
     }
@@ -33,6 +35,11 @@ public class InterfaceValidator implements Validator {
     @Override
     public ClassName wrappedClassName() {
         return wrappedTypeName;
+    }
+
+    @Override
+    public ClassName pairClassName() {
+        return pairName;
     }
 
     @Override
@@ -98,6 +105,23 @@ public class InterfaceValidator implements Validator {
                 .recordConstructor(constructor)
                 .addMethod(fromRecord)
                 .addMethod(canTransitionState)
+                .addType(createPair())
                 .build();
+    }
+
+    private TypeSpec createPair() {
+        TypeSpec.Builder pairClass = TypeSpec
+                .recordBuilder(pairName)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+        MethodSpec dataConstructor = MethodSpec
+                .constructorBuilder()
+                .addParameter(wrappedTypeName, "a")
+                .addParameter(wrappedTypeName, "b")
+                .build();
+
+        pairClass.recordConstructor(dataConstructor);
+
+        return pairClass.build();
     }
 }
