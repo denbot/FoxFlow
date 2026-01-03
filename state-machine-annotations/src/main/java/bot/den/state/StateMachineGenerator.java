@@ -787,11 +787,9 @@ public class StateMachineGenerator {
                                 nextRobotState = new $2T(RobotState.TEST);
                             }
                             
-                            if(nextState != null) {
-                                if(nextRobotState != null) {
-                                    nextState = nextState.merge(nextRobotState);
-                                }
-                            } else {
+                            if(nextState != null && nextRobotState != null) {
+                                nextState = nextState.merge(nextRobotState);
+                            } else if(nextState == null) {
                                 nextState = nextRobotState;
                             }
                             """,
