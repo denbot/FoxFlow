@@ -1,9 +1,10 @@
 plugins {
     id("java")
+    id("maven-publish")
 }
 
 group = "bot.den"
-version = "1.0-SNAPSHOT"
+version = project.findProperty("publishingVersion") ?: "dev"
 
 repositories {
     mavenCentral()
@@ -17,4 +18,23 @@ dependencies {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+java {
+    if (project.hasProperty("publishingVersion")) {
+        withSourcesJar()
+        withJavadocJar()
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = "bot.den"
+            artifactId = "foxflow"
+            version = project.version.toString()
+
+            from(components["java"])
+        }
+    }
 }

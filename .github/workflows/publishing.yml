@@ -1,0 +1,48 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Extract version from tag
+      id: version
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Publishing version: $VERSION"
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v4
+
+    - name: Build with Gradle
+      run: ./gradlew clean build -PpublishingVersion=${{ steps.version.outputs.version }}
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          foxflow/build/libs/foxflow-${{ steps.version.outputs.version }}.jar
+          foxflow/build/libs/foxflow-${{ steps.version.outputs.version }}-sources.jar
+          foxflow/build/libs/foxflow-${{ steps.version.outputs.version }}-javadoc.jar
+          foxflow-annotations/build/libs/foxflow-annotations-${{ steps.version.outputs.version }}.jar
+          foxflow-annotations/build/libs/foxflow-annotations-${{ steps.version.outputs.version }}-sources.jar
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

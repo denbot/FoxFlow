@@ -1,10 +1,11 @@
 plugins {
     id("java")
+    id("maven-publish")
     id("edu.wpi.first.wpilib.repositories.WPILibRepositoriesPlugin") version "2025.0"
 }
 
 group = "bot.den"
-version = "1.0-SNAPSHOT"
+version = project.findProperty("publishingVersion") ?: "dev"
 
 repositories {
     mavenCentral()
@@ -24,4 +25,22 @@ dependencies {
     implementation("edu.wpi.first.ntcore:ntcore-java:${wpilibVersion}")
     implementation("edu.wpi.first.wpilibNewCommands:wpilibNewCommands-java:${wpilibVersion}")
     implementation("edu.wpi.first.wpilibNewCommands:wpilibNewCommands-cpp:${wpilibVersion}")
+}
+
+java {
+    if (project.hasProperty("publishingVersion")) {
+        withSourcesJar()
+    }
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("maven") {
+            groupId = "bot.den"
+            artifactId = "foxflow-annotations"
+            version = project.version.toString()
+
+            from(components["java"])
+        }
+    }
 }
