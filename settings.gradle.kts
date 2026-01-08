@@ -1,4 +1,4 @@
-rootProject.name = "StateMachine"
-include(":state-machine-annotations")
-include(":state-machine")
+rootProject.name = "FoxFlow"
+include(":foxflow-annotations")
+include(":foxflow")
 include(":unit-tests")

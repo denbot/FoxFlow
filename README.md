@@ -1,4 +1,4 @@
-# Denbot State Machine
+# FoxFlow
 
 A type-safe state machine library for FRC robots that generates code at compile time using Java annotations.
 
@@ -17,7 +17,7 @@ If you want to track state for a single subsystem, you can use an enum. The `@St
 Here's an intake subsystem with four states:
 
 ```java
-import bot.den.state.StateMachine;
+import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public enum IntakeState {
@@ -133,8 +133,8 @@ This is useful when you need a mechanical movement to complete before changing s
 Records let you combine multiple state machines into one coordinated state:
 
 ```java
-import bot.den.state.RobotState;
-import bot.den.state.StateMachine;
+import bot.den.foxflow.RobotState;
+import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public record GameState(
@@ -219,8 +219,8 @@ This prevents teleop commands from interfering with autonomous routines.
 By default, any state can transition to any other state. You can restrict this by implementing `LimitsStateTransitions`:
 
 ```java
-import bot.den.state.LimitsStateTransitions;
-import bot.den.state.StateMachine;
+import bot.den.foxflow.LimitsStateTransitions;
+import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public enum IntakeState implements LimitsStateTransitions<IntakeState> {
@@ -284,7 +284,7 @@ public interface GamePieceTarget {
 ```
 
 ```java
-import bot.den.state.StateMachine;
+import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public record GridPosition(int row, int column) implements GamePieceTarget {
@@ -292,7 +292,7 @@ public record GridPosition(int row, int column) implements GamePieceTarget {
 ```
 
 ```java
-import bot.den.state.StateMachine;
+import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public enum GroundIntakeZone implements GamePieceTarget {
@@ -303,7 +303,7 @@ public enum GroundIntakeZone implements GamePieceTarget {
 ```
 
 ```java
-import bot.den.state.StateMachine;
+import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public record ScoringState(GamePieceTarget target) {
@@ -338,8 +338,8 @@ stateMachine
 Records can also implement `LimitsStateTransitions` to control transitions:
 
 ```java
-import bot.den.state.LimitsStateTransitions;
-import bot.den.state.StateMachine;
+import bot.den.foxflow.LimitsStateTransitions;
+import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public record GridPosition(int row, int column)
@@ -362,9 +362,9 @@ This prevents jumping across the grid in a single transition. Remember, this onl
 You can also control which types can transition to which other types:
 
 ```java
-import bot.den.state.LimitsStateTransitions;
-import bot.den.state.LimitsTypeTransitions;
-import bot.den.state.StateMachine;
+import bot.den.foxflow.LimitsStateTransitions;
+import bot.den.foxflow.LimitsTypeTransitions;
+import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public record GridPosition(int row, int column)
