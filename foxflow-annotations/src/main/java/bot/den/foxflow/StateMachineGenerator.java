@@ -1,5 +1,6 @@
 package bot.den.foxflow;
 
+import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.EnumValidator;
@@ -121,13 +122,28 @@ public class StateMachineGenerator {
                 .addCode("""
                                 $1T.this.verifyFromStateEnabled(fromState);
                                 
+                                if($1T.this.timeLimitMap.containsKey(fromState)) {
+                                    throw new $4T(
+                                            fromState,
+                                            toState,
+                                            $1T.this.timeLimitMap.get(fromState).$5L()
+                                    );
+                                }
+                                
                                 var timeRecord = new $2T(toState, time);
                                 $1T.this.timeLimitMap.put(fromState, timeRecord);
                                 $1T.this.timerMap.put(fromState, new $3T());
+                                
+                                if($1T.this.currentSubData.contains(fromState)) {
+                                    $1T.this.regenerateTimerCache();
+                                    $1T.this.timerMap.get(fromState).start();
+                                }
                                 """,
                         stateMachineClassName,
                         validator.timeClassName(),
-                        Timer.class)
+                        Timer.class,
+                        AmbiguousTransitionSetup.class,
+                        validator instanceof EnumValidator ? "getFirst" : "data")
                 .build();
 
         MethodSpec runMethod = MethodSpec
@@ -1282,31 +1298,44 @@ public class StateMachineGenerator {
                         HashSet.class)
                 .build();
 
+        CodeBlock timerCacheNumElementsLimiter;
+
+        if (validator instanceof RecordValidator) {
+            timerCacheNumElementsLimiter = CodeBlock.builder()
+                    .addStatement("setCache = setCache || this.timeLimitCache.time().equals(timeLimit.time()) && this.timerFromStateCache.numElements() < timeLimit.data().numElements()")
+                    .build();
+        } else {
+            timerCacheNumElementsLimiter = CodeBlock.builder().build();
+        }
+
         MethodSpec regenerateTimerCache = MethodSpec
                 .methodBuilder("regenerateTimerCache")
                 .addModifiers(Modifier.PRIVATE)
                 .addCode("""
-                        this.timerCache = null;
-                        this.timeLimitCache = null;
-                        this.timerFromStateCache = null;
-                        
-                        for(var subData : this.currentSubData) {
-                            if(! timerMap.containsKey(subData)) {
-                                continue;
-                            }
-                        
-                            var timeLimit = timeLimitMap.get(subData);
-                        
-                            // If we have no time limit yet or this new time limit is shorter than our current one
-                            if(this.timeLimitCache == null || this.timeLimitCache.$1L().gt(timeLimit.$1L())) {
-                                this.timerCache = timerMap.get(subData);
-                                this.timeLimitCache = timeLimitMap.get(subData);
-                                this.timerFromStateCache = subData;
-                            }
-                        }
-                        """,
-                        validator instanceof EnumValidator ? "getSecond" : "time"
-                        )
+                                this.timerCache = null;
+                                this.timeLimitCache = null;
+                                this.timerFromStateCache = null;
+                                
+                                for(var subData : this.currentSubData) {
+                                    if(! timerMap.containsKey(subData)) {
+                                        continue;
+                                    }
+                                
+                                    var timeLimit = timeLimitMap.get(subData);
+                                
+                                    // If we have no time limit yet or this new time limit is shorter than our current one
+                                    boolean setCache = this.timeLimitCache == null || this.timeLimitCache.$1L().gt(timeLimit.$1L());
+                                    $2L
+                                    if(setCache) {
+                                        this.timerCache = timerMap.get(subData);
+                                        this.timeLimitCache = timeLimitMap.get(subData);
+                                        this.timerFromStateCache = subData;
+                                    }
+                                }
+                                """,
+                        validator instanceof EnumValidator ? "getSecond" : "time",
+                        timerCacheNumElementsLimiter
+                )
                 .build();
 
         TypeSpec.Builder typeBuilder = TypeSpec

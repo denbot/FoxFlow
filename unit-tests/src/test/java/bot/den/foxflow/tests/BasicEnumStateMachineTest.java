@@ -1,5 +1,6 @@
 package bot.den.foxflow.tests;
 
+import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj.event.EventLoop;
@@ -14,6 +15,7 @@ import org.junit.jupiter.api.Test;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static edu.wpi.first.units.Units.Seconds;
 import static org.junit.jupiter.api.Assertions.*;
 
 public class BasicEnumStateMachineTest {
@@ -525,5 +527,61 @@ public class BasicEnumStateMachineTest {
         SimHooks.stepTiming(1);
         machine.poll();
         assertEquals(BasicEnum.STATE_B, machine.currentState());
+    }
+
+    @Test
+    void transitionAfterTimeInTimeUnit() {
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        // Testing the ability to start a timer after hitting a particular state means we need to set everything up
+        // before being in the state that will start the timer.
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+
+        // This is the method we're actually testing
+        machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_B).transitionAfter(Seconds.of(20));
+
+        // Polling should start our timer and put us into STATE_A
+        machine.poll();
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+
+        // Our timer goes for 20 seconds. Let's jump 19 of them and make sure we haven't changed state
+        SimHooks.stepTiming(19);
+        machine.poll();
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+
+        // Now we jump 1 more second and verify the transition occurred
+        SimHooks.stepTiming(1);
+        machine.poll();
+        assertEquals(BasicEnum.STATE_B, machine.currentState());
+    }
+
+    @Test
+    void transitionAfterStartsImmediately() {
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        // This is the method we're actually testing
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAfter(Seconds.of(20));
+
+        // Our timer goes for 20 seconds. Let's jump 19 of them and make sure we haven't changed state
+        SimHooks.stepTiming(19);
+        machine.poll();
+        assertEquals(BasicEnum.START, machine.currentState());
+
+        // Now we jump 1 more second and verify the transition occurred
+        SimHooks.stepTiming(1);
+        machine.poll();
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+    }
+
+    @Test
+    void transitionAfterAmbiguousStateTransitionCannotBeSetup() {
+        var machine = new BasicEnumStateMachine(BasicEnum.STATE_A);
+
+        machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_B).transitionAfter(Seconds.of(5));
+
+        assertThrows(
+                AmbiguousTransitionSetup.class,
+                () -> machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_C).transitionAfter(Seconds.of(1))
+        );
     }
 }

@@ -3,6 +3,7 @@ package bot.den.foxflow.tests;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.tests.BasicRecord.InnerEnum;
 import edu.wpi.first.hal.HAL;
+import edu.wpi.first.wpilibj.simulation.SimHooks;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
 import org.junit.jupiter.api.AfterEach;
@@ -25,6 +26,9 @@ public class BasicRecordStateMachineTest {
                 BasicEnum.START,
                 BasicRecord.InnerEnum.STAR
         );
+
+        // Just for our timing tests, but it's a good thing to verify
+        assertFalse(SimHooks.isTimingPaused());
     }
 
     @AfterEach
@@ -313,5 +317,52 @@ public class BasicRecordStateMachineTest {
         assertEquals(MultiStateEnum.B, this.machine.currentState().multiState());
         assertEquals(BasicEnum.START, this.machine.currentState().basic());
         assertEquals(InnerEnum.CIRCLE, this.machine.currentState().inner());
+    }
+
+    @Test
+    void multiplePossibleTransitionsShouldChooseTheClosestTime() {
+        this.machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAfter(5);
+        this.machine.state(InnerEnum.STAR).to(InnerEnum.CIRCLE).transitionAfter(3);
+
+        // Let's move forward 2 seconds to make sure nothing has happened
+        SimHooks.stepTiming(2);
+        this.machine.poll();
+
+        assertEquals(BasicEnum.START, this.machine.currentState().basic());
+        assertEquals(InnerEnum.STAR, this.machine.currentState().inner());
+
+        // One more second should transition STAR -> CIRCLE
+        SimHooks.stepTiming(1);
+        this.machine.poll();
+
+        assertEquals(BasicEnum.START, this.machine.currentState().basic());
+        assertEquals(InnerEnum.CIRCLE, this.machine.currentState().inner());
+
+        // Great, and our original timer is still valid, so after 2 more seconds we should see it transition too
+        SimHooks.stepTiming(2);
+        this.machine.poll();
+
+        assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
+        assertEquals(InnerEnum.CIRCLE, this.machine.currentState().inner());
+    }
+
+    @Test
+    void sameTimeWithDifferentTransitionsChoosesTheLargestFromState() {
+        // These are two transitions set up separately, but specifying two states in the second qualifier means that one wins
+        this.machine.state(MultiStateEnum.A).to(MultiStateEnum.B).transitionAfter(5);
+        // Specify MultiStateEnum in the output so these two transitions aren't compatible
+        this.machine.state(MultiStateEnum.A, BasicEnum.START).to(MultiStateEnum.C, BasicEnum.STATE_A).transitionAfter(5);
+
+        // Start by making sure nothing moved
+        this.machine.poll();
+        assertEquals(MultiStateEnum.A, this.machine.currentState().multiState());
+        assertEquals(BasicEnum.START, this.machine.currentState().basic());
+
+        // Move 5 seconds forward and make sure we transitioned the correct state
+        SimHooks.stepTiming(5);
+        this.machine.poll();
+
+        assertEquals(MultiStateEnum.C, this.machine.currentState().multiState());
+        assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
     }
 }
