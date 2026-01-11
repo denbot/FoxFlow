@@ -272,14 +272,14 @@ public class BasicRecordStateMachineTest {
     @Test
     void independentTransitionChoosesTheLargestStateToTransitionOn() {
         // These are two transitions set up separately, but specifying two states in the second qualifier means that one wins
-        // It is important to note that having the same transition function causes them to filter out at the caching stage
         this.machine.state(MultiStateEnum.A).to(MultiStateEnum.B).transitionAlways();
-        this.machine.state(MultiStateEnum.A, BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        // Specify MultiStateEnum in the output so these two transitions aren't compatible
+        this.machine.state(MultiStateEnum.A, BasicEnum.START).to(MultiStateEnum.C, BasicEnum.STATE_A).transitionAlways();
 
         this.machine.poll();
 
         // After a single poll, only the one should have moved
-        assertEquals(MultiStateEnum.A, this.machine.currentState().multiState());
+        assertEquals(MultiStateEnum.C, this.machine.currentState().multiState());
         assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
     }
 
@@ -288,7 +288,7 @@ public class BasicRecordStateMachineTest {
         AtomicBoolean test = new AtomicBoolean(true);
 
         // These are two transitions set up separately, but specifying two states in the second qualifier means that one wins
-        // It is important to note that having differnt transition function causes them to combine in th get nextStage
+        // It is important to note that having different transition function causes them to combine in the get nextStage
         this.machine.state(MultiStateEnum.A, BasicEnum.START, InnerEnum.STAR).to(MultiStateEnum.B).transitionAlways();
         this.machine.state(MultiStateEnum.A, BasicEnum.START).to(MultiStateEnum.C).transitionWhen(test::get);
 
