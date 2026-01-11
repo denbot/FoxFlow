@@ -4,10 +4,8 @@ import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.Environment;
 import bot.den.foxflow.LimitsTypeTransitions;
 import bot.den.foxflow.Util;
-import com.palantir.javapoet.ClassName;
-import com.palantir.javapoet.MethodSpec;
-import com.palantir.javapoet.ParameterizedTypeName;
-import com.palantir.javapoet.TypeSpec;
+import com.palantir.javapoet.*;
+import edu.wpi.first.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
 import java.util.ArrayList;
@@ -18,11 +16,13 @@ public class InterfaceValidator implements Validator {
     private final ClassName originalTypeName;
     private final ClassName wrappedTypeName;
     private final ClassName pairName;
+    private final ClassName timeName;
 
     public InterfaceValidator(Environment environment) {
         originalTypeName = ClassName.get(environment.element());
         wrappedTypeName = Util.getUniqueClassName(originalTypeName.peerClass(originalTypeName.simpleName() + "Data"));
         pairName = wrappedTypeName.nestedClass("Pair");
+        timeName = wrappedTypeName.nestedClass("Time");
 
         typesToWrite.add(createRecordWrapper());
     }
@@ -40,6 +40,11 @@ public class InterfaceValidator implements Validator {
     @Override
     public ClassName pairClassName() {
         return pairName;
+    }
+
+    @Override
+    public TypeName timeClassName() {
+        return timeName;
     }
 
     @Override
@@ -106,22 +111,35 @@ public class InterfaceValidator implements Validator {
                 .addMethod(fromRecord)
                 .addMethod(canTransitionState)
                 .addType(createPair())
+                .addType(createTime())
                 .build();
     }
 
     private TypeSpec createPair() {
-        TypeSpec.Builder pairClass = TypeSpec
-                .recordBuilder(pairName)
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
-
         MethodSpec dataConstructor = MethodSpec
                 .constructorBuilder()
                 .addParameter(wrappedTypeName, "a")
                 .addParameter(wrappedTypeName, "b")
                 .build();
 
-        pairClass.recordConstructor(dataConstructor);
+        return TypeSpec
+                .recordBuilder(pairName)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .recordConstructor(dataConstructor)
+                .build();
+    }
 
-        return pairClass.build();
+    private TypeSpec createTime() {
+        MethodSpec dataConstructor = MethodSpec
+                .constructorBuilder()
+                .addParameter(wrappedTypeName, "data")
+                .addParameter(Time.class, "time")
+                .build();
+
+        return TypeSpec
+                .recordBuilder(timeName)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .recordConstructor(dataConstructor)
+                .build();
     }
 }

@@ -4,6 +4,7 @@ import bot.den.foxflow.*;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import com.palantir.javapoet.*;
 import com.palantir.javapoet.TypeSpec.Builder;
+import edu.wpi.first.units.measure.Time;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
@@ -31,6 +32,7 @@ public class RecordValidator implements Validator {
     private final ClassName wrappedTypeName;
     private final ClassName robotStateName;
     private final ClassName pairName;
+    private final ClassName timeName;
     private final List<List<ClassName>> permutations;
 
     public RecordValidator(Environment environment) {
@@ -39,6 +41,7 @@ public class RecordValidator implements Validator {
 
         wrappedTypeName = Util.getUniqueClassName(originalTypeName.peerClass(originalTypeName.simpleName() + "Data"));
         pairName = wrappedTypeName.nestedClass("Pair");
+        timeName = wrappedTypeName.nestedClass("Time");
 
         var typeUtils = environment.processingEnvironment().getTypeUtils();
 
@@ -270,6 +273,11 @@ public class RecordValidator implements Validator {
     }
 
     @Override
+    public TypeName timeClassName() {
+        return timeName;
+    }
+
+    @Override
     public boolean supportsStateTransition() {
         // A record class supports state transitions only if any of its fields do.
         return supportsStateTransition.values().stream().anyMatch(v -> v);
@@ -482,6 +490,7 @@ public class RecordValidator implements Validator {
         recordInterfaceBuilder.addMethod(numElements);
 
         recordInterfaceBuilder.addType(createPair());
+        recordInterfaceBuilder.addType(createTime());
 
         return recordInterfaceBuilder.build();
     }
@@ -645,30 +654,30 @@ public class RecordValidator implements Validator {
     }
 
     private TypeSpec createPair() {
-        TypeSpec.Builder pairClass = TypeSpec
-                .recordBuilder(pairName)
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
-
         MethodSpec dataConstructor = MethodSpec
                 .constructorBuilder()
                 .addParameter(wrappedTypeName, "a")
                 .addParameter(wrappedTypeName, "b")
                 .build();
 
-        pairClass.recordConstructor(dataConstructor);
+        return TypeSpec
+                .recordBuilder(pairName)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .recordConstructor(dataConstructor)
+                .build();
+    }
 
-        if(robotStatePresent) {
-            MethodSpec robotStateConstructor = MethodSpec
-                    .constructorBuilder()
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(robotStateName, "a")
-                    .addParameter(robotStateName, "b")
-                    .addStatement("this(new $1T(a), new $1T(b))", fieldToInnerClass.get(List.of(robotStateName)))
-                    .build();
+    private TypeSpec createTime() {
+        MethodSpec dataConstructor = MethodSpec
+                .constructorBuilder()
+                .addParameter(wrappedTypeName, "data")
+                .addParameter(Time.class, "time")
+                .build();
 
-            pairClass.addMethod(robotStateConstructor);
-        }
-
-        return pairClass.build();
+        return TypeSpec
+                .recordBuilder(timeName)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .recordConstructor(dataConstructor)
+                .build();
     }
 }

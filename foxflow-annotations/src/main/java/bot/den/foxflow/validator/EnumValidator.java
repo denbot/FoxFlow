@@ -6,6 +6,7 @@ import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.ParameterizedTypeName;
 import com.palantir.javapoet.TypeName;
 import edu.wpi.first.math.Pair;
+import edu.wpi.first.units.measure.Time;
 
 import java.util.List;
 import java.util.Objects;
@@ -39,6 +40,15 @@ public class EnumValidator implements Validator {
                 ClassName.get(Pair.class),
                 originalTypeName,
                 originalTypeName
+        );
+    }
+
+    @Override
+    public TypeName timeClassName() {
+        return ParameterizedTypeName.get(
+                ClassName.get(Pair.class),
+                originalTypeName,
+                ClassName.get(Time.class)
         );
     }
 

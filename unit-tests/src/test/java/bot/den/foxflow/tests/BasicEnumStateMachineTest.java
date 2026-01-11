@@ -3,6 +3,7 @@ package bot.den.foxflow.tests;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj.event.EventLoop;
+import edu.wpi.first.wpilibj.simulation.SimHooks;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import edu.wpi.first.wpilibj2.command.Commands;
@@ -19,6 +20,9 @@ public class BasicEnumStateMachineTest {
     @BeforeEach
     public void setup() {
         assertTrue(HAL.initialize(500, 0));
+
+        // Just for our timing tests, but it's a good thing to verify
+        assertFalse(SimHooks.isTimingPaused());
     }
 
     @AfterEach
@@ -495,5 +499,31 @@ public class BasicEnumStateMachineTest {
         // Only the STATE_A trigger should be active
         assertFalse(startTrigger.getAsBoolean());
         assertTrue(aTrigger.getAsBoolean());
+    }
+
+    @Test
+    void transitionAfterTimeInSeconds() {
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        // Testing the ability to start a timer after hitting a particular state means we need to set everything up
+        // before being in the state that will start the timer.
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+
+        // This is the method we're actually testing
+        machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_B).transitionAfter(20);
+
+        // Polling should start our timer and put us into STATE_A
+        machine.poll();
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+
+        // Our timer goes for 20 seconds. Let's jump 19 of them and make sure we haven't changed state
+        SimHooks.stepTiming(19);
+        machine.poll();
+        assertEquals(BasicEnum.STATE_A, machine.currentState());
+
+        // Now we jump 1 more second and verify the transition occurred
+        SimHooks.stepTiming(1);
+        machine.poll();
+        assertEquals(BasicEnum.STATE_B, machine.currentState());
     }
 }

@@ -3,14 +3,15 @@ package bot.den.foxflow;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.EnumValidator;
-import bot.den.foxflow.validator.InterfaceValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.*;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StringPublisher;
-import edu.wpi.first.networktables.StringTopic;
+import edu.wpi.first.units.Units;
+import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.DSControlWord;
+import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj.event.EventLoop;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
@@ -111,6 +112,24 @@ public class StateMachineGenerator {
                         ArrayList.class)
                 .build();
 
+        MethodSpec afterMethod = MethodSpec
+                .methodBuilder("transitionAfter")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(stateDataName, "fromState")
+                .addParameter(stateDataName, "toState")
+                .addParameter(Time.class, "time")
+                .addCode("""
+                                $1T.this.verifyFromStateEnabled(fromState);
+                                
+                                var timeRecord = new $2T(toState, time);
+                                $1T.this.timeLimitMap.put(fromState, timeRecord);
+                                $1T.this.timerMap.put(fromState, new $3T());
+                                """,
+                        stateMachineClassName,
+                        validator.timeClassName(),
+                        Timer.class)
+                .build();
+
         MethodSpec runMethod = MethodSpec
                 .methodBuilder("run")
                 .addModifiers(Modifier.PUBLIC)
@@ -187,6 +206,7 @@ public class StateMachineGenerator {
         return TypeSpec
                 .classBuilder(stateManagerClassName)
                 .addMethod(whenMethod)
+                .addMethod(afterMethod)
                 .addMethod(runMethod)
                 .addMethod(failLoudlyMethod)
                 .addMethod(triggerMethod)
@@ -280,6 +300,23 @@ public class StateMachineGenerator {
                 .addStatement("return transitionWhen(() -> true)")
                 .build();
 
+        MethodSpec afterDoubleMethod = MethodSpec
+                .methodBuilder("transitionAfter")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(double.class, "seconds")
+                .returns(stateToClassName)
+                .addStatement("return transitionAfter($T.Seconds.of(seconds))", Units.class)
+                .build();
+
+        MethodSpec afterTimeMethod = MethodSpec
+                .methodBuilder("transitionAfter")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(Time.class, "time")
+                .returns(stateToClassName)
+                .addStatement("this.manager.transitionAfter(this.fromState, this.toState, time)")
+                .addStatement("return this")
+                .build();
+
         TypeSpec type = TypeSpec
                 .classBuilder(stateToClassName)
                 .addModifiers(Modifier.PUBLIC)
@@ -287,6 +324,8 @@ public class StateMachineGenerator {
                 .addMethod(constructor)
                 .addMethod(whenMethod)
                 .addMethod(alwaysMethod)
+                .addMethod(afterDoubleMethod)
+                .addMethod(afterTimeMethod)
                 .build();
 
         this.environment.writeType(type);
@@ -542,6 +581,45 @@ public class StateMachineGenerator {
                 .builder(triggerMapType, "triggerMap")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer("new $T()", HashMap.class)
+                .build();
+
+        var timerMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                stateDataName,
+                ClassName.get(Timer.class)
+        );
+
+        FieldSpec timerMap = FieldSpec
+                .builder(timerMapType, "timerMap")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T()", HashMap.class)
+                .build();
+
+        var timeLimitMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                stateDataName,
+                validator.timeClassName()
+        );
+
+        FieldSpec timeLimitMap = FieldSpec
+                .builder(timeLimitMapType, "timeLimitMap")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T()", HashMap.class)
+                .build();
+
+        FieldSpec timerCache = FieldSpec
+                .builder(Timer.class, "timerCache")
+                .addModifiers(Modifier.PRIVATE)
+                .build();
+
+        FieldSpec timerFromStateCache = FieldSpec
+                .builder(stateDataName, "timerFromStateCache")
+                .addModifiers(Modifier.PRIVATE)
+                .build();
+
+        FieldSpec timeLimitCache = FieldSpec
+                .builder(validator.timeClassName(), "timeLimitCache")
+                .addModifiers(Modifier.PRIVATE)
                 .build();
 
         final String FROM = "from";
@@ -832,6 +910,10 @@ public class StateMachineGenerator {
                                     }
                                 }
                                 
+                                if(this.timerCache != null && this.timerCache.hasElapsed(this.timeLimitCache.$5L())) {
+                                    possibleOptions.add(new $4T(this.timerFromStateCache, this.timeLimitCache.$6L()));
+                                }
+                                
                                 if(possibleOptions.isEmpty()) {
                                     return null;
                                 } else if(possibleOptions.size() == 1) {
@@ -840,7 +922,10 @@ public class StateMachineGenerator {
                                 """,
                         pairList,
                         ArrayList.class,
-                        validator instanceof EnumValidator ? "getSecond" : "b"
+                        validator instanceof EnumValidator ? "getSecond" : "b",
+                        validator.pairClassName(),
+                        validator instanceof EnumValidator ? "getSecond" : "time",
+                        validator instanceof EnumValidator ? "getFirst" : "data"
                 );
 
 
@@ -971,22 +1056,50 @@ public class StateMachineGenerator {
 
         updateStateMethodBuilder
                 .addCode("""
-                                var nextStates = generateToSubDataStates(nextState);
+                                var nextToStates = generateToSubDataStates(nextState);
                                 
-                                if(! $1T.disjoint(failLoudlyCache, nextStates)) {
+                                if(! $1T.disjoint(failLoudlyCache, nextToStates)) {
                                     var failLoudly = new $2T("State transition was requested to fail loudly");
                                 
                                     throw new $3T(currentState, nextState, failLoudly);
                                 }
                                 
-                                runTransitionCommands(nextStates);
+                                runTransitionCommands(nextToStates);
+                                
+                                var nextFromStates = generateFromSubDataStates(nextState);
+                                
+                                // Stop the current timers that aren't in our new state
+                                for(var currentData : currentSubData) {
+                                    if(!this.timerMap.containsKey(currentData)) {
+                                        continue; // No timer to stop
+                                    }
+                                
+                                    if(nextFromStates.contains(currentData)) {
+                                        continue; // This timer will continue on
+                                    }
+                                
+                                    var timer = this.timerMap.get(currentData);
+                                    timer.stop();
+                                    timer.reset();
+                                }
+                                
+                                // Start timers that aren't in our current state but are in our new
+                                for(var nextData : nextFromStates) {
+                                    if(!this.timerMap.containsKey(nextData)) {
+                                        continue; // No timer to start
+                                    }
+                                
+                                    var timer = this.timerMap.get(nextData);
+                                    timer.start(); // Start does nothing if the timer is already started
+                                }
                                 
                                 this.currentState = nextState;
                                 currentStateTopic.set(currentState.toString());
-                                this.currentSubData = generateFromSubDataStates(this.currentState);
+                                this.currentSubData = nextFromStates;
                                 this.regenerateTransitionWhenCache();
                                 this.regenerateCommandCache();
                                 this.regenerateFailLoudlyCache();
+                                this.regenerateTimerCache();
                                 """,
                         Collections.class,
                         FailLoudlyException.class,
@@ -1169,6 +1282,33 @@ public class StateMachineGenerator {
                         HashSet.class)
                 .build();
 
+        MethodSpec regenerateTimerCache = MethodSpec
+                .methodBuilder("regenerateTimerCache")
+                .addModifiers(Modifier.PRIVATE)
+                .addCode("""
+                        this.timerCache = null;
+                        this.timeLimitCache = null;
+                        this.timerFromStateCache = null;
+                        
+                        for(var subData : this.currentSubData) {
+                            if(! timerMap.containsKey(subData)) {
+                                continue;
+                            }
+                        
+                            var timeLimit = timeLimitMap.get(subData);
+                        
+                            // If we have no time limit yet or this new time limit is shorter than our current one
+                            if(this.timeLimitCache == null || this.timeLimitCache.$1L().gt(timeLimit.$1L())) {
+                                this.timerCache = timerMap.get(subData);
+                                this.timeLimitCache = timeLimitMap.get(subData);
+                                this.timerFromStateCache = subData;
+                            }
+                        }
+                        """,
+                        validator instanceof EnumValidator ? "getSecond" : "time"
+                        )
+                .build();
+
         TypeSpec.Builder typeBuilder = TypeSpec
                 .classBuilder(stateMachineClassName)
                 .addModifiers(Modifier.PUBLIC)
@@ -1183,7 +1323,21 @@ public class StateMachineGenerator {
                 .addField(transitionCommandCache)
                 .addField(failLoudlyMap)
                 .addField(failLoudlyCache)
-                .addField(triggerMap);
+                .addField(triggerMap)
+                .addField(timerMap)
+                .addField(timeLimitMap)
+                .addField(timerCache)
+                .addField(timerFromStateCache)
+                .addField(timeLimitCache)
+                .addMethod(regenerateTransitionWhenCacheMethod)
+                .addMethod(regenerateCommandCacheMethod)
+                .addMethod(regenerateFailLoudlyCacheMethod)
+                .addMethod(regenerateTimerCache)
+                .addMethod(runPollCommandMethod)
+                .addMethod(pollMethod)
+                .addMethod(getNextStateMethod)
+                .addMethod(updateStateMethod)
+                .addMethod(runTransitionCommands);
 
         if (controlWord != null) {
             typeBuilder.addField(controlWord);
@@ -1213,13 +1367,6 @@ public class StateMachineGenerator {
             typeBuilder.addMethod(transitionToMethod);
         }
 
-        typeBuilder
-                .addMethod(runPollCommandMethod)
-                .addMethod(pollMethod)
-                .addMethod(getNextStateMethod)
-                .addMethod(updateStateMethod)
-                .addMethod(runTransitionCommands);
-
         for (var verifyStateEnabledMethod : verifyStateEnabledMethods) {
             typeBuilder.addMethod(verifyStateEnabledMethod);
         }
@@ -1227,11 +1374,6 @@ public class StateMachineGenerator {
         for (var generateSubDataStatesMethod : generateSubDataStatesMethods) {
             typeBuilder.addMethod(generateSubDataStatesMethod);
         }
-
-        typeBuilder
-                .addMethod(regenerateTransitionWhenCacheMethod)
-                .addMethod(regenerateCommandCacheMethod)
-                .addMethod(regenerateFailLoudlyCacheMethod);
 
         typeBuilder.addType(internalStateManager);
 
