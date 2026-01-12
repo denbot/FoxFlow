@@ -401,7 +401,12 @@ public class StateMachineGenerator {
                 CodeBlock code = CodeBlock
                         .builder()
                         .add("return $L(\n", callingMethodName)
-                        .add(validator.emitDataClass(fields))
+                        .add(
+                                validator.dataEmitter(fields)
+                                        .withConstructor()
+                                        .withNestedClassesWrapped()
+                                        .emit()
+                        )
                         .add(");\n")
                         .build();
 
@@ -706,7 +711,12 @@ public class StateMachineGenerator {
                 CodeBlock.Builder code = CodeBlock
                         .builder()
                         .add("this(new $T(", validator.originalTypeName())
-                        .add(validator.emitFieldNames(fields, Function.identity(), false))
+                        .add(
+                                validator
+                                        .dataEmitter(fields)
+                                        .withDefaultsSubstituted()
+                                        .emit()
+                        )
                         .add("));");
 
                 constructorBuilder.addCode(code.build());
@@ -764,7 +774,12 @@ public class StateMachineGenerator {
                 CodeBlock code = CodeBlock
                         .builder()
                         .add("return state(")
-                        .add(validator.emitDataClass(fields))
+                        .add(
+                                validator.dataEmitter(fields)
+                                        .withConstructor()
+                                        .withNestedClassesWrapped()
+                                        .emit()
+                        )
                         .add(");")
                         .build();
 
@@ -829,7 +844,12 @@ public class StateMachineGenerator {
                 CodeBlock code = CodeBlock
                         .builder()
                         .add("return transitionTo(")
-                        .add(validator.emitDataClass(fields))
+                        .add(
+                                validator.dataEmitter(fields)
+                                        .withConstructor()
+                                        .withNestedClassesWrapped()
+                                        .emit()
+                        )
                         .add(");")
                         .build();
 
@@ -1211,7 +1231,14 @@ public class StateMachineGenerator {
 
                                     generateSubDataStateBuilder
                                             .beginControlFlow("if(this.$L)", enabledField.name())
-                                            .addStatement("result.add($L)", rv.emitDataClass(innerClassName, f -> f + "Field"))
+                                            .addStatement(
+                                                    "result.add($L)",
+                                                    rv.dataEmitter(innerClassName)
+                                                            .withConstructor()
+                                                            .withNestedClassesWrapped()
+                                                            .withTransform(f -> f + "Field")
+                                                            .emit()
+                                            )
                                             .endControlFlow();
                                 });
 

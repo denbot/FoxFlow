@@ -4,13 +4,16 @@ import bot.den.foxflow.RobotState;
 import edu.wpi.first.hal.HAL;
 import edu.wpi.first.wpilibj.simulation.DriverStationSim;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import edu.wpi.first.wpilibj2.command.Commands;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -60,7 +63,6 @@ public class RobotStateTest {
         assertEquals(to, machine.currentState().robotState());
     }
 
-
     @ParameterizedTest
     @MethodSource("robotStateCombinations")
     void robotTransitionMovesAllFields(RobotState from, RobotState to) {
@@ -81,6 +83,23 @@ public class RobotStateTest {
 
         assertEquals(to, machine.currentState().robotState());
         assertEquals(MultiStateEnum.B, machine.currentState().multiState());
+    }
+
+    @Test
+    void robotStateIsNotHardCodedInToMethod() {
+        AtomicBoolean test = new AtomicBoolean();
+
+        var machine = new RobotRecordStateMachine(MultiStateEnum.A);
+
+        machine.state(MultiStateEnum.A).to(RobotState.AUTO).run(Commands.runOnce(() -> test.set(true)).ignoringDisable(true));
+
+        setDriverStationState(RobotState.AUTO);
+        machine.poll();
+
+        assertEquals(MultiStateEnum.A, machine.currentState().multiState());
+        assertEquals(RobotState.AUTO, machine.currentState().robotState());
+
+        assertTrue(test.get());
     }
 
     /**
