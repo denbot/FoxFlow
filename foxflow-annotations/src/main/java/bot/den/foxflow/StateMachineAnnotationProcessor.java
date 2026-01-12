@@ -10,6 +10,7 @@ import java.util.Set;
 
 public class StateMachineAnnotationProcessor extends AbstractProcessor {
     private final String stateMachineAnnotationClass = "bot.den.foxflow.StateMachine";
+    private final String defaultStateAnnotationClass = "bot.den.foxflow.DefaultState";
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
@@ -59,10 +60,6 @@ public class StateMachineAnnotationProcessor extends AbstractProcessor {
 
     @Override
     public Set<String> getSupportedAnnotationTypes() {
-        /*
-         Supposedly this is necessary to ensure we see all the classes that may be implementing any interfaces we may
-         be interested in. During my testing, it didn't seem necessary, but it also doesn't seem to hurt.
-        */
-        return Set.of("*");
+        return Set.of(stateMachineAnnotationClass, defaultStateAnnotationClass);
     }
 }
