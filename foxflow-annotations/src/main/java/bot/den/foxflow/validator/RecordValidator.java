@@ -33,7 +33,7 @@ public class RecordValidator implements Validator {
     private final ClassName robotStateName;
     private final ClassName pairName;
     private final ClassName timeName;
-    private final List<List<ClassName>> permutations;
+    private final Set<List<ClassName>> permutations;
 
     public RecordValidator(Environment environment) {
         var typeElement = environment.element();
@@ -130,7 +130,7 @@ public class RecordValidator implements Validator {
             fieldNameMap.put(typeName, variableName);
         }
 
-        permutations = getPermutations(fieldTypes);
+        permutations = new PermutationBuilder<>(fieldTypes).get();
 
         fieldToInnerClass = new HashMap<>();
         innerClassToField = new HashMap<>();
@@ -148,62 +148,6 @@ public class RecordValidator implements Validator {
         robotStateName = ClassName.get(RobotState.class);
         robotStatePresent = fieldTypes.contains(robotStateName);
         typesToWrite.add(createRecordWrapper());
-    }
-
-    /**
-     * This method finds all permutations of a given input and maintains the order of the input types in its output.
-     * E.g., ["A", "B", "C"] as input would give you these permutations:
-     * ["A"], ["B"], ["C"]
-     * ["A", "B"], ["B", "C"]
-     * ["A", "B", "C"]
-     *
-     * @param input The list of ClassName's to find all permutations of
-     * @return The permutations of all lengths
-     */
-    private <T> List<List<T>> getPermutations(List<T> input) {
-        List<List<T>> permutations = new LinkedList<>();
-
-        for (int numElements = 1; numElements <= input.size(); numElements++) {
-            permutations.addAll(getPermutations(input, numElements));
-        }
-
-        return permutations;
-    }
-
-    private <T> List<List<T>> getPermutations(List<T> input, int length) {
-        List<List<T>> permutations = new LinkedList<>();
-
-        int counter = 0;
-        int maxCounter = input.size() * length;
-        main_loop:
-        while (counter < maxCounter) {
-            int tempCounter = counter;
-
-            int lastIndex = Integer.MAX_VALUE;
-            List<T> permutation = new ArrayList<>(length);
-
-            // From the right side to the left, we're going to fill in our counted values
-            for (int i = length - 1; i >= 0; i--) {
-                int index = tempCounter % input.size();
-
-                // If we choose a later index in our list, we'd be putting these out of order, so let's avoid this attempt
-                // and try again.
-                if (index >= lastIndex) {
-                    counter++;
-                    continue main_loop;
-                }
-
-                permutation.add(0, input.get(index));
-                lastIndex = index;
-
-                tempCounter = tempCounter / input.size();
-            }
-
-            permutations.add(permutation);
-            counter++;
-        }
-
-        return permutations;
     }
 
     private static CodeBlock commaSeparate(List<CodeBlock> blocks) {
