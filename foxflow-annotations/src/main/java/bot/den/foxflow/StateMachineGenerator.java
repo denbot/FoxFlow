@@ -1100,8 +1100,6 @@ public class StateMachineGenerator {
                                     throw new $3T(currentState, nextState, failLoudly);
                                 }
                                 
-                                runTransitionCommands(nextToStates);
-                                
                                 var nextFromStates = generateFromSubDataStates(nextState);
                                 
                                 // Stop the current timers that aren't in our new state
@@ -1132,6 +1130,9 @@ public class StateMachineGenerator {
                                 this.currentState = nextState;
                                 currentStateTopic.set(currentState.toString());
                                 this.currentSubData = nextFromStates;
+                                
+                                runTransitionCommands(nextToStates);
+                                
                                 this.regenerateTransitionWhenCache();
                                 this.regenerateCommandCache();
                                 this.regenerateFailLoudlyCache();

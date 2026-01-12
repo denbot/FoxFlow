@@ -365,4 +365,24 @@ public class BasicRecordStateMachineTest {
         assertEquals(MultiStateEnum.C, this.machine.currentState().multiState());
         assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
     }
+
+    /**
+     * This test was added because transition side effects were not taking into account the transition that had occurred
+     * in the updateState transition. So (A1, B1) would update to (A2, B1), but if there was a transitionTo B2 in
+     * response to that, we would see (A1, B2) instead of (A2, B2).
+     */
+    @Test
+    void callingTransitionToDuringStateTransitionWorks() {
+        this.machine
+                .state(MultiStateEnum.A)
+                .to(MultiStateEnum.B)
+                .transitionAlways()
+                .run(
+                        this.machine.transitionTo(BasicEnum.STATE_A)
+                );
+
+        this.machine.poll();
+        assertEquals(MultiStateEnum.B, this.machine.currentState().multiState());
+        assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
+    }
 }
