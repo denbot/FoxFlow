@@ -331,6 +331,44 @@ public class BasicEnumStateMachineTest {
     }
 
     @Test
+    void transitionsStack() {
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        machine
+                .state(BasicEnum.START)
+                .to(BasicEnum.STATE_A)
+                .transitionAlways()
+                .run(machine.transitionTo(BasicEnum.STATE_B));
+
+        // Ensure creating the command didn't do anything
+        assertEquals(BasicEnum.START, machine.currentState());
+
+        // Both the transition to STATE_A and the subsequent transition to STATE_B should occur here
+        machine.poll();
+
+        assertEquals(BasicEnum.STATE_B, machine.currentState());
+    }
+
+    @Test
+    void transitionToShortcut() {
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
+
+        machine
+                .state(BasicEnum.START)
+                .to(BasicEnum.STATE_A)
+                .transitionAlways()
+                .transitionTo(BasicEnum.STATE_B);
+
+        // Ensure creating the command didn't do anything
+        assertEquals(BasicEnum.START, machine.currentState());
+
+        // Both the transition to STATE_A and the subsequent transition to STATE_B should occur here
+        machine.poll();
+
+        assertEquals(BasicEnum.STATE_B, machine.currentState());
+    }
+
+    @Test
     void runPollCommand() {
         var machine = new BasicEnumStateMachine(BasicEnum.START);
 

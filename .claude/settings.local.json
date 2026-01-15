@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "Bash(tree:*)",
+      "Bash(cat:*)",
+      "WebFetch(domain:api.github.com)",
+      "WebSearch",
+      "Bash(find:*)",
+      "Bash(while read dir)",
+      "Bash(do newdir=$dir//state//foxflow mkdir -p $newdir mv $dir/* $newdir/)",
+      "Bash(true rmdir $dir)",
+      "Bash(./gradlew clean:*)",
+      "WebFetch(domain:docs.wpilib.org)"
+    ]
+  }
+}

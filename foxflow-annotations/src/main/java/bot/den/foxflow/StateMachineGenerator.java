@@ -23,10 +23,8 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
 import java.util.*;
-import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Function;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -224,14 +222,49 @@ public class StateMachineGenerator {
                 )
                 .build();
 
-        return TypeSpec
+        Builder<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
+            @Override
+            public CodeBlock enumCode() {
+                return CodeBlock.of("return $T.this.transitionTo(state);", stateMachineClassName);
+            }
+
+            @Override
+            public CodeBlock internalData() {
+                return CodeBlock.of("");
+            }
+
+            @Override
+            public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
+                return CodeBlock
+                        .builder()
+                        .add("return $T.this.transitionTo(", stateMachineClassName)
+                        .add(
+                                recordValidator.dataEmitter(fields)
+                                        .emit()
+                        )
+                        .add(");")
+                        .build();
+            }
+
+            @Override
+            public TypeName returnType() {
+                return ClassName.get(Command.class);
+            }
+        });
+
+        TypeSpec.Builder managerType = TypeSpec
                 .classBuilder(stateManagerClassName)
                 .addMethod(whenMethod)
                 .addMethod(afterMethod)
                 .addMethod(runMethod)
                 .addMethod(failLoudlyMethod)
-                .addMethod(triggerMethod)
-                .build();
+                .addMethod(triggerMethod);
+
+        for(var transitionToMethod : transitionToMethods) {
+            managerType.addMethod(transitionToMethod);
+        }
+
+        return managerType.build();
     }
 
     private void generateLimitedToClass() {
@@ -275,13 +308,43 @@ public class StateMachineGenerator {
                 .addStatement("this.manager.run(this.fromState, this.toState, command)")
                 .build();
 
+        Builder<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
+            @Override
+            public CodeBlock enumCode() {
+                return CodeBlock.of("this.run(this.manager.transitionTo(state));");
+            }
+
+            @Override
+            public CodeBlock internalData() {
+                return CodeBlock.of("");
+            }
+
+            @Override
+            public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
+                return CodeBlock
+                        .builder()
+                        .add("this.run(this.manager.transitionTo(")
+                        .add(
+                                recordValidator.dataEmitter(fields)
+                                        .emit()
+                        )
+                        .add("));")
+                        .build();
+            }
+
+            @Override
+            public TypeName returnType() {
+                return TypeName.VOID;
+            }
+        });
+
         MethodSpec failLoudlyMethod = MethodSpec
                 .methodBuilder("failLoudly")
                 .addModifiers(Modifier.PUBLIC)
                 .addStatement("this.manager.failLoudly(this.fromState, this.toState)")
                 .build();
 
-        TypeSpec type = TypeSpec
+        TypeSpec.Builder type = TypeSpec
                 .classBuilder(stateLimitedToClassName)
                 .addModifiers(Modifier.PUBLIC)
                 .addField(managerField)
@@ -289,10 +352,13 @@ public class StateMachineGenerator {
                 .addField(toStateField)
                 .addMethod(constructor)
                 .addMethod(runMethod)
-                .addMethod(failLoudlyMethod)
-                .build();
+                .addMethod(failLoudlyMethod);
 
-        this.environment.writeType(type);
+        for (var transitionToMethod : transitionToMethods) {
+            type.addMethod(transitionToMethod);
+        }
+
+        this.environment.writeType(type.build());
     }
 
     private void generateToClass() {
@@ -398,12 +464,12 @@ public class StateMachineGenerator {
 
         toMethods.permuteFields(Builder.optional)
                 .fields((fields, className) -> {
-                    if(! (validator instanceof RecordValidator rv)) {
+                    if (!(validator instanceof RecordValidator rv)) {
                         throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
                     }
 
                     // Can't go to an empty list
-                    if(className == null) {
+                    if (className == null) {
                         return null;
                     }
 
@@ -696,10 +762,10 @@ public class StateMachineGenerator {
                     .addModifiers(visibility)
                     .addParameter(validator.originalTypeName(), "initialState")
                     .addCode("""
-                                this.currentState = initialState;
-                                this.currentSubData = this.generateToSubDataStates(initialState);
-                                currentStateTopic.set(currentState.toString());
-                                """)
+                            this.currentState = initialState;
+                            this.currentSubData = this.generateToSubDataStates(initialState);
+                            currentStateTopic.set(currentState.toString());
+                            """)
                     .build();
         });
 
@@ -712,18 +778,18 @@ public class StateMachineGenerator {
                         }
 
                         // No default value means it must be included in the constructor
-                        if(! rv.defaultValues.containsKey(classNameField.value())) {
+                        if (!rv.defaultValues.containsKey(classNameField.value())) {
                             return List.of(classNameField);
                         }
 
                         Element defaultElement = rv.defaultValues.get(classNameField.value());
                         DefaultState annotation = defaultElement.getAnnotation(DefaultState.class);
-                        if(annotation == null) {
+                        if (annotation == null) {
                             throw new RuntimeException(classNameField.value() + " was in the default values but somehow wasn't annotated");
                         }
 
                         // It has a default value, but the user can't override it
-                        if(! annotation.userCanOverride()) {
+                        if (!annotation.userCanOverride()) {
                             List<Field<ClassName>> result = new ArrayList<>();
                             result.add(null);
                             return result;
@@ -811,7 +877,7 @@ public class StateMachineGenerator {
                     }
 
                     // Can't specify state on an empty list
-                    if(className == null) {
+                    if (className == null) {
                         return null;
                     }
 
@@ -839,82 +905,37 @@ public class StateMachineGenerator {
                     return methodBuilder.addCode(code).build();
                 });
 
-        Builder<MethodSpec> transitionToMethods = validator.newBuilder();
-        transitionToMethods.userDataType(() -> {
-            if (validator instanceof EnumValidator) {
-                return MethodSpec
-                        .methodBuilder("transitionTo")
-                        .addModifiers(Modifier.PUBLIC)
-                        .addParameter(validator.originalTypeName(), "state")
-                        .returns(Command.class)
-                        .addStatement("return $T.runOnce(() -> updateState(state)).ignoringDisable(true)", Commands.class)
+        Builder<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
+            @Override
+            public CodeBlock enumCode() {
+                return CodeBlock.of("return $T.runOnce(() -> updateState(state)).ignoringDisable(true);", Commands.class);
+            }
+
+            @Override
+            public CodeBlock internalData() {
+                return CodeBlock.of("return $T.runOnce(() -> updateState(state)).ignoringDisable(true);", Commands.class);
+            }
+
+            @Override
+            public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
+                return CodeBlock
+                        .builder()
+                        .add("return transitionTo(")
+                        .add(
+                                recordValidator.dataEmitter(fields)
+                                        .withConstructor()
+                                        .withNestedClassesWrapped()
+                                        .emit()
+                        )
+                        .add(");")
                         .build();
-            } else if (validator instanceof RecordValidator) {
-                /*
-                We don't make a transitionTo method for a record as the record could contain the RobotState and the
-                user should not be able to force that transition. We could theoretically check if the record had a
-                RobotState as one of its components, but then the method might "disappear" from the user's
-                perspective. We could ignore the robot state when updating our internal state, but that might be
-                confusing for the user who either expected that transition to hold or didn't know what value to put
-                for Robot State.
-                 */
-                return null;
-            } else {
-                throw new RuntimeException("Unknown validator type");
+            }
+
+            @Override
+            public TypeName returnType() {
+                return ClassName.get(Command.class);
             }
         });
-
-        transitionToMethods.wrappedType(() -> MethodSpec
-                .methodBuilder("transitionTo")
-                .addModifiers(Modifier.PRIVATE)
-                .addParameter(validator.wrappedClassName(), "state")
-                .returns(Command.class)
-                .addCode("""
-                                return $T.runOnce(() -> updateState(state)).ignoringDisable(true);
-                                """,
-                        Commands.class)
-                .build());
-
-        transitionToMethods.permuteFields(Builder.optional)
-                .fields((fields, className) -> {
-                    if (!(validator instanceof RecordValidator rv)) {
-                        throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
-                    }
-
-                    // Can't transition to an empty list
-                    if (className == null) {
-                        return null;
-                    }
-
-                    boolean hasRobotStateField = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
-                    if (hasRobotStateField) {
-                        // We don't want to allow the user to ever transition to a specific RobotState
-                        return null;
-                    }
-
-                    MethodSpec.Builder methodBuilder = MethodSpec
-                            .methodBuilder("transitionTo")
-                            .addModifiers(Modifier.PUBLIC)
-                            .returns(Command.class);
-
-                    for (var field : fields) {
-                        methodBuilder.addParameter(field.value(), field.name());
-                    }
-
-                    CodeBlock code = CodeBlock
-                            .builder()
-                            .add("return transitionTo(")
-                            .add(
-                                    rv.dataEmitter(fields)
-                                            .withConstructor()
-                                            .withNestedClassesWrapped()
-                                            .emit()
-                            )
-                            .add(");")
-                            .build();
-
-                    return methodBuilder.addCode(code).build();
-                });
 
         MethodSpec runPollCommandMethod = MethodSpec
                 .methodBuilder("runPollCommand")
@@ -933,7 +954,7 @@ public class StateMachineGenerator {
 
         if (validator instanceof RecordValidator rv && rv.robotStatePresent) {
             var robotFieldOption = rv.fields.stream().filter(f -> f.value().equals(robotStateName)).findFirst();
-            if(robotFieldOption.isEmpty()) {
+            if (robotFieldOption.isEmpty()) {
                 throw new RuntimeException("Robot state was supposedly present but we couldn't find the field");
             }
 
@@ -1484,5 +1505,86 @@ public class StateMachineGenerator {
         typeBuilder.addType(internalStateManager);
 
         this.environment.writeType(typeBuilder.build());
+    }
+
+    private Builder<MethodSpec> transitionToMethods(TransitionToCode transitionToCode) {
+        Builder<MethodSpec> transitionToMethods = validator.newBuilder();
+        transitionToMethods.userDataType(() -> {
+            if (validator instanceof EnumValidator) {
+                return MethodSpec
+                        .methodBuilder("transitionTo")
+                        .addModifiers(Modifier.PUBLIC)
+                        .addParameter(validator.originalTypeName(), "state")
+                        .returns(transitionToCode.returnType())
+                        .addCode(transitionToCode.enumCode())
+                        .build();
+            } else if (validator instanceof RecordValidator) {
+                /*
+                We don't make a transitionTo method for a record as the record could contain the RobotState and the
+                user should not be able to force that transition. We could theoretically check if the record had a
+                RobotState as one of its components, but then the method might "disappear" from the user's
+                perspective. We could ignore the robot state when updating our internal state, but that might be
+                confusing for the user who either expected that transition to hold or didn't know what value to put
+                for Robot State.
+                 */
+                return null;
+            } else {
+                throw new RuntimeException("Unknown validator type");
+            }
+        });
+
+        CodeBlock internalDataCode = transitionToCode.internalData();
+        if (!internalDataCode.isEmpty()) {
+            transitionToMethods.wrappedType(() -> MethodSpec
+                    .methodBuilder("transitionTo")
+                    .addModifiers(Modifier.PRIVATE)
+                    .addParameter(validator.wrappedClassName(), "state")
+                    .returns(transitionToCode.returnType())
+                    .addCode(transitionToCode.internalData())
+                    .build());
+        }
+
+        transitionToMethods.permuteFields(Builder.optional)
+                .fields((fields, className) -> {
+                    if (!(validator instanceof RecordValidator rv)) {
+                        throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
+                    }
+
+                    // Can't transition to an empty list
+                    if (className == null) {
+                        return null;
+                    }
+
+                    boolean hasRobotStateField = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
+                    if (hasRobotStateField) {
+                        // We don't want to allow the user to ever transition to a specific RobotState
+                        return null;
+                    }
+
+                    MethodSpec.Builder methodBuilder = MethodSpec
+                            .methodBuilder("transitionTo")
+                            .addModifiers(Modifier.PUBLIC)
+                            .returns(transitionToCode.returnType());
+
+                    for (var field : fields) {
+                        methodBuilder.addParameter(field.value(), field.name());
+                    }
+
+                    return methodBuilder
+                            .addCode(transitionToCode.fields(rv, fields))
+                            .build();
+                });
+
+        return transitionToMethods;
+    }
+
+    interface TransitionToCode {
+        CodeBlock enumCode();
+
+        CodeBlock internalData();
+
+        CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields);
+
+        TypeName returnType();
     }
 }
