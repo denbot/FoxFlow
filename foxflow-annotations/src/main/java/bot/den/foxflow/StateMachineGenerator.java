@@ -527,7 +527,7 @@ public class StateMachineGenerator {
         FieldSpec transitionWhenMap = FieldSpec
                 .builder(transitionWhenMapType, "transitionWhenMap")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", HashMap.class)
+                .initializer("new $T<>()", HashMap.class)
                 .build();
 
         var transitionWhenCacheType = ParameterizedTypeName.get(
@@ -542,7 +542,7 @@ public class StateMachineGenerator {
         FieldSpec transitionWhenCache = FieldSpec
                 .builder(transitionWhenCacheType, "transitionWhenCache")
                 .addModifiers(Modifier.PRIVATE)
-                .initializer("new $T()", HashMap.class)
+                .initializer("new $T<>()", HashMap.class)
                 .build();
 
         ParameterizedTypeName commandListType = ParameterizedTypeName.get(
@@ -559,35 +559,10 @@ public class StateMachineGenerator {
                 )
         );
 
-        var failLoudlyMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                stateDataName,
-                ParameterizedTypeName.get(
-                        ClassName.get(Set.class),
-                        stateDataName
-                )
-        );
-        FieldSpec failLoudlyMap = FieldSpec
-                .builder(failLoudlyMapType, "failLoudlyMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", HashMap.class)
-                .build();
-
-        var failLoudlyCacheType = ParameterizedTypeName.get(
-                ClassName.get(Set.class),
-                stateDataName
-        );
-
-        FieldSpec failLoudlyCache = FieldSpec
-                .builder(failLoudlyCacheType, "failLoudlyCache")
-                .addModifiers(Modifier.PRIVATE)
-                .initializer("new $T()", HashSet.class)
-                .build();
-
         FieldSpec transitionCommandMap = FieldSpec
                 .builder(transitionCommandMapType, "transitionCommandMap")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", HashMap.class)
+                .initializer("new $T<>()", HashMap.class)
                 .build();
 
         var transitionCommandCacheType = ParameterizedTypeName.get(
@@ -599,7 +574,32 @@ public class StateMachineGenerator {
         FieldSpec transitionCommandCache = FieldSpec
                 .builder(transitionCommandCacheType, "transitionCommandCache")
                 .addModifiers(Modifier.PRIVATE)
-                .initializer("new $T()", HashMap.class)
+                .initializer("new $T<>()", HashMap.class)
+                .build();
+
+        var failLoudlyMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                stateDataName,
+                ParameterizedTypeName.get(
+                        ClassName.get(Set.class),
+                        stateDataName
+                )
+        );
+        FieldSpec failLoudlyMap = FieldSpec
+                .builder(failLoudlyMapType, "failLoudlyMap")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T<>()", HashMap.class)
+                .build();
+
+        var failLoudlyCacheType = ParameterizedTypeName.get(
+                ClassName.get(Set.class),
+                stateDataName
+        );
+
+        FieldSpec failLoudlyCache = FieldSpec
+                .builder(failLoudlyCacheType, "failLoudlyCache")
+                .addModifiers(Modifier.PRIVATE)
+                .initializer("new $T<>()", HashSet.class)
                 .build();
 
         var triggerMapType = ParameterizedTypeName.get(
@@ -611,7 +611,7 @@ public class StateMachineGenerator {
         FieldSpec triggerMap = FieldSpec
                 .builder(triggerMapType, "triggerMap")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", HashMap.class)
+                .initializer("new $T<>()", HashMap.class)
                 .build();
 
         var timerMapType = ParameterizedTypeName.get(
@@ -623,7 +623,7 @@ public class StateMachineGenerator {
         FieldSpec timerMap = FieldSpec
                 .builder(timerMapType, "timerMap")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", HashMap.class)
+                .initializer("new $T<>()", HashMap.class)
                 .build();
 
         var timeLimitMapType = ParameterizedTypeName.get(
@@ -635,7 +635,7 @@ public class StateMachineGenerator {
         FieldSpec timeLimitMap = FieldSpec
                 .builder(timeLimitMapType, "timeLimitMap")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", HashMap.class)
+                .initializer("new $T<>()", HashMap.class)
                 .build();
 
         FieldSpec timerCache = FieldSpec
@@ -987,7 +987,7 @@ public class StateMachineGenerator {
                 .returns(stateDataName)
                 .addComment("Map of our input specifiers to list of valid outputs")
                 .addCode("""
-                                $1T possibleOptions = new $2T();
+                                $1T possibleOptions = new $2T<>();
                                 for(var entry : this.transitionWhenCache.entrySet()) {
                                     var supplier = entry.getKey();
                                 
@@ -1018,10 +1018,10 @@ public class StateMachineGenerator {
         if (validator instanceof RecordValidator) {
             getNextStateMethodBuilder
                     .addCode("""
-                                    $1T finalResults = new $2T();
-                                    $4T seen = new $5T(possibleOptions);
+                                    $1T finalResults = new $2T<>();
+                                    $4T seen = new $5T<>(possibleOptions);
                                     while(!possibleOptions.isEmpty()) {
-                                        $1T mergedResults = new $2T();
+                                        $1T mergedResults = new $2T<>();
                                     
                                         $3T option = possibleOptions.remove(0);
                                         boolean mergedThisOne = false;
@@ -1053,14 +1053,14 @@ public class StateMachineGenerator {
                                         return finalResults.get(0).b();
                                     }
                                     
-                                    $1T bestOptions = new $2T();
+                                    $1T bestOptions = new $2T<>();
                                     int bestNumElements = 0;
                                     for(var option : finalResults) {
                                         int ourNumElements = option.a().numElements();
                                         if(ourNumElements < bestNumElements) {
                                             continue;
                                         } else if(ourNumElements > bestNumElements) {
-                                            bestOptions = new $2T();
+                                            bestOptions = new $2T<>();
                                             bestNumElements = ourNumElements;
                                         }
                                         bestOptions.add(option);
@@ -1313,7 +1313,7 @@ public class StateMachineGenerator {
                                     for (var fromEntry : this.transitionWhenMap.get(state).entrySet()) {
                                         for (var supplier : fromEntry.getValue()) {
                                             if (!this.transitionWhenCache.containsKey(supplier)) {
-                                                this.transitionWhenCache.put(supplier, new $2T());
+                                                this.transitionWhenCache.put(supplier, new $2T<>());
                                             }
                                 
                                             this.transitionWhenCache.get(supplier).add(new $3T(state, fromEntry.getKey()));

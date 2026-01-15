@@ -82,17 +82,20 @@ public class InterfaceValidator implements Validator {
         MethodSpec canTransitionState = MethodSpec
                 .methodBuilder("canTransitionState")
                 .addAnnotation(Override.class)
+                .addAnnotation(AnnotationSpec.builder(SuppressWarnings.class).addMember("value", "\"unchecked\"").build())
                 .addModifiers(Modifier.PUBLIC)
                 .returns(boolean.class)
                 .addParameter(wrappedTypeName, "data")
                 .addCode("""
                                 Class ourClass = this.data.getClass();
                                 Class theirClass = data.data.getClass();
-                                if(ourClass.equals(theirClass) && this.data instanceof $1T transition) {
-                                    return transition.canTransitionState(data.data);
+                                if(ourClass.equals(theirClass) && this.data instanceof $1T ourData) {
+                                    // otherData's class is ourData's class by the check above, but the compiler doesn't understand that, hence
+                                    // the SuppressWarnings annotation above.
+                                    return ourData.canTransitionState(data.data);
                                 }
-                                if(! ourClass.equals(theirClass) && this.data instanceof $2T transition) {
-                                    return transition.canTransitionType(data.data);
+                                if(! ourClass.equals(theirClass) && this.data instanceof $2T ourData) {
+                                    return ourData.canTransitionType(data.data);
                                 }
                                 return true;
                                 """,
