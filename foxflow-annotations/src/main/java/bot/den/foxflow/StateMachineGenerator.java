@@ -25,7 +25,10 @@ import javax.lang.model.element.*;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class StateMachineGenerator {
     final ProcessingEnvironment processingEnv;
@@ -399,6 +402,11 @@ public class StateMachineGenerator {
                         throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
                     }
 
+                    // Can't go to an empty list
+                    if(className == null) {
+                        return null;
+                    }
+
                     boolean hasRobotStateField = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
                     var returnValue = hasRobotStateField ? stateLimitedToClassName : stateToClassName;
                     var callingMethodName = returnValue.equals(stateToClassName) ? "to" : "limitedTo";
@@ -696,7 +704,35 @@ public class StateMachineGenerator {
         });
 
         constructors
-                .permuteFields(Builder.identity)
+                .permuteFields(new Function<Field<ClassName>, Collection<Field<ClassName>>>() {
+                    @Override
+                    public Collection<Field<ClassName>> apply(Field<ClassName> classNameField) {
+                        if (!(validator instanceof RecordValidator rv)) {
+                            throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
+                        }
+
+                        // No default value means it must be included in the constructor
+                        if(! rv.defaultValues.containsKey(classNameField.value())) {
+                            return List.of(classNameField);
+                        }
+
+                        Element defaultElement = rv.defaultValues.get(classNameField.value());
+                        DefaultState annotation = defaultElement.getAnnotation(DefaultState.class);
+                        if(annotation == null) {
+                            throw new RuntimeException(classNameField.value() + " was in the default values but somehow wasn't annotated");
+                        }
+
+                        // It has a default value, but the user can't override it
+                        if(! annotation.userCanOverride()) {
+                            List<Field<ClassName>> result = new ArrayList<>();
+                            result.add(null);
+                            return result;
+                        }
+
+                        // It has a default value, and it can be overridden, so we allow both options
+                        return Stream.of(null, classNameField).toList();
+                    }
+                })
                 .fields((fields, className) -> {
                     if (!(validator instanceof RecordValidator rv)) {
                         throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
@@ -707,21 +743,19 @@ public class StateMachineGenerator {
                             .addModifiers(Modifier.PUBLIC);
 
                     for (var field : fields) {
-                        // We don't want to allow the user to include the robotState in the constructor
-                        if (field.value().equals(robotStateName)) {
-                            continue;
-                        }
-
                         constructorBuilder.addParameter(field.value(), field.name());
                     }
+
+                    var substitutedFieldTypes = rv.fields.stream().map(Field::value).collect(Collectors.toCollection(HashSet::new));
+                    substitutedFieldTypes.removeAll(fields.stream().map(Field::value).collect(Collectors.toSet()));
 
                     CodeBlock.Builder code = CodeBlock
                             .builder()
                             .add("this(new $T(", validator.originalTypeName())
                             .add(
                                     rv
-                                            .dataEmitter(fields)
-                                            .withDefaultsSubstituted()
+                                            .dataEmitter(rv.fields)
+                                            .withDefaultsSubstituted(substitutedFieldTypes)
                                             .emit()
                             )
                             .add("));");
@@ -774,6 +808,11 @@ public class StateMachineGenerator {
                 .fields((fields, className) -> {
                     if (!(validator instanceof RecordValidator rv)) {
                         throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
+                    }
+
+                    // Can't specify state on an empty list
+                    if(className == null) {
+                        return null;
                     }
 
                     MethodSpec.Builder methodBuilder = MethodSpec
@@ -837,42 +876,44 @@ public class StateMachineGenerator {
                 .build());
 
         transitionToMethods.permuteFields(Builder.optional)
-                .fields(new BiFunction<List<Field<ClassName>>, ClassName, MethodSpec>() {
-                    @Override
-                    public MethodSpec apply(List<Field<ClassName>> fields, ClassName className) {
-                        if (!(validator instanceof RecordValidator rv)) {
-                            throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
-                        }
-
-                        boolean hasRobotStateField = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
-                        if (hasRobotStateField) {
-                            // We don't want to allow the user to ever transition to a specific RobotState
-                            return null;
-                        }
-
-                        MethodSpec.Builder methodBuilder = MethodSpec
-                                .methodBuilder("transitionTo")
-                                .addModifiers(Modifier.PUBLIC)
-                                .returns(Command.class);
-
-                        for (var field : fields) {
-                            methodBuilder.addParameter(field.value(), field.name());
-                        }
-
-                        CodeBlock code = CodeBlock
-                                .builder()
-                                .add("return transitionTo(")
-                                .add(
-                                        rv.dataEmitter(fields)
-                                                .withConstructor()
-                                                .withNestedClassesWrapped()
-                                                .emit()
-                                )
-                                .add(");")
-                                .build();
-
-                        return methodBuilder.addCode(code).build();
+                .fields((fields, className) -> {
+                    if (!(validator instanceof RecordValidator rv)) {
+                        throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
                     }
+
+                    // Can't transition to an empty list
+                    if (className == null) {
+                        return null;
+                    }
+
+                    boolean hasRobotStateField = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
+                    if (hasRobotStateField) {
+                        // We don't want to allow the user to ever transition to a specific RobotState
+                        return null;
+                    }
+
+                    MethodSpec.Builder methodBuilder = MethodSpec
+                            .methodBuilder("transitionTo")
+                            .addModifiers(Modifier.PUBLIC)
+                            .returns(Command.class);
+
+                    for (var field : fields) {
+                        methodBuilder.addParameter(field.value(), field.name());
+                    }
+
+                    CodeBlock code = CodeBlock
+                            .builder()
+                            .add("return transitionTo(")
+                            .add(
+                                    rv.dataEmitter(fields)
+                                            .withConstructor()
+                                            .withNestedClassesWrapped()
+                                            .emit()
+                            )
+                            .add(");")
+                            .build();
+
+                    return methodBuilder.addCode(code).build();
                 });
 
         MethodSpec runPollCommandMethod = MethodSpec

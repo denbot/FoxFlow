@@ -6,10 +6,12 @@ import bot.den.foxflow.exceptions.InvalidStateTransition;
 import com.palantir.javapoet.*;
 import edu.wpi.first.units.measure.Time;
 
+import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import java.util.*;
+import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -23,6 +25,7 @@ public class RecordValidator implements Validator {
     // These contain the mapping between the class the user defined and our data class
     public final Map<ClassName, ClassName> nestedRecords = new HashMap<>();
     public final Map<ClassName, ClassName> nestedInterfaces = new HashMap<>();
+    public final Map<ClassName, Element> defaultValues = new HashMap<>();
 
     private final Map<ClassName, Boolean> supportsStateTransition;
 
@@ -84,9 +87,7 @@ public class RecordValidator implements Validator {
                             .toList()
             );
 
-            nestedRecordValidators.forEach(rv -> {
-                nestedRecords.put(rv.originalTypeName, rv.wrappedTypeName);
-            });
+            nestedRecordValidators.forEach(rv -> nestedRecords.put(rv.originalTypeName, rv.wrappedTypeName));
         }
 
         // Nested Interfaces
@@ -106,6 +107,21 @@ public class RecordValidator implements Validator {
 
             interfaceValidators.forEach(iv -> {
                 nestedInterfaces.put(iv.originalTypeName(), iv.wrappedClassName());
+            });
+        }
+
+        // Enum default values
+        {
+            List<EnumValidator> enumValidators = validators
+                    .stream()
+                    .filter(v -> v instanceof EnumValidator)
+                    .map(v -> (EnumValidator) v)
+                    .toList();
+
+            enumValidators.forEach(enumValidator -> {
+                if (enumValidator.defaultOption != null) {
+                    defaultValues.put(enumValidator.originalTypeName(), enumValidator.defaultOption);
+                }
             });
         }
 
@@ -141,90 +157,6 @@ public class RecordValidator implements Validator {
         robotStateName = ClassName.get(RobotState.class);
         robotStatePresent = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
         typesToWrite.add(createRecordWrapper());
-    }
-
-    private static CodeBlock commaSeparate(List<CodeBlock> blocks) {
-        CodeBlock.Builder result = CodeBlock.builder();
-        for (int i = 0; i < blocks.size(); i++) {
-            var block = blocks.get(i);
-            result.add(block);
-
-            if (i + 1 < blocks.size()) {
-                result.add(", ");
-            }
-        }
-
-        return result.build();
-    }
-
-    public class DataEmitter {
-        private final List<Field<ClassName>> fields;
-        private final ClassName dataClass;
-        private boolean emitConstructor = false;
-        private boolean substituteDefaults = false;
-        private boolean wrapNestedClasses = false;
-
-        private Function<String, String> transformFieldName = Function.identity();
-
-        DataEmitter(List<Field<ClassName>> fields) {
-            this.fields = fields;
-            this.dataClass = fieldToInnerClass.get(fields);
-        }
-
-        public DataEmitter withConstructor() {
-            this.emitConstructor = true;
-            return this;
-        }
-
-        public DataEmitter withTransform(Function<String, String> transform) {
-            this.transformFieldName = transform;
-            return this;
-        }
-
-        public DataEmitter withDefaultsSubstituted() {
-            this.substituteDefaults = true;
-            return this;
-        }
-
-        public DataEmitter withNestedClassesWrapped() {
-            this.wrapNestedClasses = true;
-            return this;
-        }
-
-        public CodeBlock emit() {
-            CodeBlock.Builder code = CodeBlock.builder();
-
-            if(emitConstructor) {
-                code.add("new $T(", this.dataClass);
-            }
-
-            List<CodeBlock> fieldCodes = this.fields
-                    .stream()
-                    .map(field -> {
-                        var fieldName = transformFieldName.apply(field.name());
-
-                        var type = field.value();
-
-                        if (substituteDefaults && type.equals(robotStateName)) {
-                            return CodeBlock.of("$T.DISABLED", RobotState.class);
-                        } else if (wrapNestedClasses && nestedRecords.containsKey(type)) {
-                            return CodeBlock.of("$1T.fromRecord($2L)", nestedRecords.get(type), fieldName);
-                        } else if (wrapNestedClasses && nestedInterfaces.containsKey(type)) {
-                            return CodeBlock.of("$1T.fromRecord($2L)", nestedInterfaces.get(type), fieldName);
-                        } else {
-                            return CodeBlock.of(fieldName);
-                        }
-                    })
-                    .toList();
-
-            code.add(commaSeparate(fieldCodes));
-
-            if(emitConstructor) {
-                code.add(")");
-            }
-
-            return code.build();
-        }
     }
 
     public DataEmitter dataEmitter(List<Field<ClassName>> fields) {
@@ -638,5 +570,90 @@ public class RecordValidator implements Validator {
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .recordConstructor(dataConstructor)
                 .build();
+    }
+
+    private static CodeBlock commaSeparate(List<CodeBlock> blocks) {
+        CodeBlock.Builder result = CodeBlock.builder();
+        for (int i = 0; i < blocks.size(); i++) {
+            var block = blocks.get(i);
+            result.add(block);
+
+            if (i + 1 < blocks.size()) {
+                result.add(", ");
+            }
+        }
+
+        return result.build();
+    }
+
+    public class DataEmitter {
+        private final List<Field<ClassName>> fields;
+        private final ClassName dataClass;
+        private boolean emitConstructor = false;
+        private Set<ClassName> substituteDefaults = new HashSet<>();
+        private boolean wrapNestedClasses = false;
+
+        private Function<String, String> transformFieldName = Function.identity();
+
+        DataEmitter(List<Field<ClassName>> fields) {
+            this.fields = fields;
+            this.dataClass = fieldToInnerClass.get(fields);
+        }
+
+        public DataEmitter withConstructor() {
+            this.emitConstructor = true;
+            return this;
+        }
+
+        public DataEmitter withTransform(Function<String, String> transform) {
+            this.transformFieldName = transform;
+            return this;
+        }
+
+        public DataEmitter withDefaultsSubstituted(Set<ClassName> fields) {
+            this.substituteDefaults = fields;
+            return this;
+        }
+
+        public DataEmitter withNestedClassesWrapped() {
+            this.wrapNestedClasses = true;
+            return this;
+        }
+
+        public CodeBlock emit() {
+            CodeBlock.Builder code = CodeBlock.builder();
+
+            if (emitConstructor) {
+                code.add("new $T(", this.dataClass);
+            }
+
+            List<CodeBlock> fieldCodes = this.fields
+                    .stream()
+                    .map(field -> {
+                        var fieldName = transformFieldName.apply(field.name());
+
+                        var type = field.value();
+
+                        if (substituteDefaults.contains(type) && defaultValues.containsKey(type)) {
+                            Element defaultValue = defaultValues.get(type);
+                            return CodeBlock.of("$T.$L", defaultValue.getEnclosingElement(), defaultValue);
+                        } else if (wrapNestedClasses && nestedRecords.containsKey(type)) {
+                            return CodeBlock.of("$1T.fromRecord($2L)", nestedRecords.get(type), fieldName);
+                        } else if (wrapNestedClasses && nestedInterfaces.containsKey(type)) {
+                            return CodeBlock.of("$1T.fromRecord($2L)", nestedInterfaces.get(type), fieldName);
+                        } else {
+                            return CodeBlock.of(fieldName);
+                        }
+                    })
+                    .toList();
+
+            code.add(commaSeparate(fieldCodes));
+
+            if (emitConstructor) {
+                code.add(")");
+            }
+
+            return code.build();
+        }
     }
 }

@@ -122,12 +122,6 @@ public class Builder<T> implements Iterable<T> {
                         if(value != null) {
                             newFields.add(0, new Field<>(value.value(), field.name()));
                             dataClass = newDataClass;
-                        } else if(fieldStack.isEmpty() && dataClass == null) {
-                            /*
-                             If this is the last field and our data class is still null here, this is the one case that
-                             would return an empty list in our permutations, which we do not want.
-                            */
-                            continue;
                         }
 
                         newPermutations.add(new FieldMap<>(

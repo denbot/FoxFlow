@@ -3,6 +3,7 @@ package bot.den.foxflow.validator;
 import bot.den.foxflow.DefaultState;
 import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.Environment;
+import bot.den.foxflow.RobotState;
 import bot.den.foxflow.builders.Builder;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.ParameterizedTypeName;
@@ -11,17 +12,13 @@ import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Time;
 
 import javax.lang.model.element.Element;
-import javax.lang.model.element.TypeElement;
-import java.util.List;
-import java.util.Objects;
-import java.util.Optional;
+import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class EnumValidator implements Validator {
     private final ClassName originalTypeName;
     private final boolean implementsStateTransitionInterface;
-    private final Element defaultOption;
+    public final Element defaultOption;
 
     public EnumValidator(Environment environment) {
         var typeElement = environment.element();
@@ -29,9 +26,20 @@ public class EnumValidator implements Validator {
 
         implementsStateTransitionInterface = environment.validlySelfImplements(LimitsStateTransitions.class);
 
-        var defaultOptions = environment
+        Set<? extends Element> elementsAnnotatedWithDefaultOptions = environment
                 .roundEnvironment()
-                .getElementsAnnotatedWith(DefaultState.class)
+                .getElementsAnnotatedWith(DefaultState.class);
+
+        // RobotState was compiled already, so would not be in the previous list
+        if(environment.element().getQualifiedName().toString().equals(RobotState.class.getCanonicalName())) {
+            elementsAnnotatedWithDefaultOptions = environment.element()
+                    .getEnclosedElements()
+                    .stream()
+                    .filter(e -> e.getAnnotation(DefaultState.class) != null)
+                    .collect(Collectors.toSet());
+        }
+
+        var defaultOptions = elementsAnnotatedWithDefaultOptions
                 .stream()
                 .filter((e) -> e.getEnclosingElement().equals(environment.element()))
                 .collect(Collectors.toUnmodifiableSet());
