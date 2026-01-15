@@ -201,7 +201,7 @@ public class RecordValidator implements Validator {
             List<CodeBlock> fieldCodes = this.fields
                     .stream()
                     .map(field -> {
-                        var fieldName = transformFieldName.apply(field.fieldName());
+                        var fieldName = transformFieldName.apply(field.name());
 
                         var type = field.value();
 
@@ -298,7 +298,7 @@ public class RecordValidator implements Validator {
                 } else if (nestedInterfaces.containsKey(dataTypeName)) {
                     dataTypeName = nestedInterfaces.get(dataTypeName);
                 }
-                var entryName = field.fieldName();
+                var entryName = field.name();
 
                 MethodSpec.Builder extractorMethodBuilder = MethodSpec
                         .methodBuilder("get" + Util.ucfirst(entryName))
@@ -332,7 +332,7 @@ public class RecordValidator implements Validator {
             List<CodeBlock> arguments = fields
                     .stream()
                     .map(field -> {
-                        String name = field.fieldName();
+                        String name = field.name();
                         ClassName type = field.value();
                         if (nestedRecords.containsKey(type)) {
                             var nestedDataType = nestedRecords.get(type);
@@ -361,7 +361,7 @@ public class RecordValidator implements Validator {
             List<CodeBlock> arguments = fields
                     .stream()
                     .map(field -> {
-                        String name = field.fieldName();
+                        String name = field.name();
                         ClassName type = field.value();
                         if (nestedRecords.containsKey(type)) {
                             var nestedDataType = nestedRecords.get(type);
@@ -463,7 +463,7 @@ public class RecordValidator implements Validator {
 
         for (var field : types) {
             // Add the type parameter to the constructor
-            String fieldName = field.fieldName();
+            String fieldName = field.name();
             var dataTypeName = field.value();
             if (nestedRecords.containsKey(dataTypeName)) {
                 dataTypeName = nestedRecords.get(dataTypeName);
@@ -473,7 +473,7 @@ public class RecordValidator implements Validator {
 
             recordConstructor.addParameter(dataTypeName, fieldName);
 
-            var checkStateTransition = supportsStateTransition.get(dataTypeName);
+            var checkStateTransition = supportsStateTransition.get(field.value());
             if (checkStateTransition) {
                 compareTransitions.add(CodeBlock.of(
                         """
@@ -560,7 +560,7 @@ public class RecordValidator implements Validator {
                             CodeBlock code = CodeBlock.join(
                                     commonFields
                                             .stream()
-                                            .map(f -> CodeBlock.of("this.$1L.equals(data.$1L)", f.fieldName()))
+                                            .map(f -> CodeBlock.of("this.$1L.equals(data.$1L)", f.name()))
                                             .toList(),
                                     " && "
                             );
@@ -585,8 +585,8 @@ public class RecordValidator implements Validator {
                                 fieldsCorrectOrder
                                         .stream()
                                         .map(f -> entry.getValue().contains(f) ?
-                                                CodeBlock.of("data.$1L", f.fieldName()) :
-                                                CodeBlock.of("this.$1L", f.fieldName()))
+                                                CodeBlock.of("data.$1L", f.name()) :
+                                                CodeBlock.of("this.$1L", f.name()))
                                         .toList(),
                                 ",\n"
                         );

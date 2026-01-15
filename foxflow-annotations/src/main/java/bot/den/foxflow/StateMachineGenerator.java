@@ -1,5 +1,6 @@
 package bot.den.foxflow;
 
+import bot.den.foxflow.builders.Builder;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
@@ -22,7 +23,9 @@ import edu.wpi.first.wpilibj2.command.button.Trigger;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
 import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
+import java.util.function.Supplier;
 
 public class StateMachineGenerator {
     final ProcessingEnvironment processingEnv;
@@ -366,63 +369,63 @@ public class StateMachineGenerator {
                 .addStatement("this.manager = manager")
                 .build();
 
-        List<MethodSpec> toMethods = validator.visitPermutations(new Validator.Visitor<>() {
-            @Override
-            public MethodSpec acceptUserDataType() {
-                if (validator instanceof RecordValidator) {
-                    // Inside the method doesn't call this, and we don't want the user to be able to in order to avoid RobotState issues
-                    return null;
-                }
-
-                return MethodSpec
-                        .methodBuilder("to")
-                        .addModifiers(Modifier.PUBLIC)
-                        .addParameter(validator.originalTypeName(), "state")
-                        .returns(stateToClassName)
-                        .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
-                        .build();
+        Builder<MethodSpec> toMethods = validator.newBuilder();
+        toMethods.userDataType(() -> {
+            if (validator instanceof RecordValidator) {
+                // Inside the method doesn't call this, and we don't want the user to be able to in order to avoid RobotState issues
+                return null;
             }
 
-            @Override
-            public MethodSpec acceptFields(RecordValidator validator, List<ClassName> fields) {
-                var returnValue = fields.contains(robotStateName) ? stateLimitedToClassName : stateToClassName;
-                var callingMethodName = returnValue.equals(stateToClassName) ? "to" : "limitedTo";
-
-                MethodSpec.Builder methodBuilder = MethodSpec
-                        .methodBuilder("to")
-                        .addModifiers(Modifier.PUBLIC)
-                        .returns(returnValue);
-
-                for (var type : fields) {
-                    methodBuilder.addParameter(type, validator.fieldNameMap.get(type));
-                }
-
-                CodeBlock code = CodeBlock
-                        .builder()
-                        .add("return $L(\n", callingMethodName)
-                        .add(
-                                validator.dataEmitter(fields)
-                                        .withConstructor()
-                                        .withNestedClassesWrapped()
-                                        .emit()
-                        )
-                        .add(");\n")
-                        .build();
-
-                return methodBuilder.addCode(code).build();
-            }
-
-            @Override
-            public MethodSpec acceptWrapperDataType() {
-                return MethodSpec
-                        .methodBuilder("to")
-                        .addModifiers(Modifier.PRIVATE)
-                        .returns(stateToClassName)
-                        .addParameter(validator.wrappedClassName(), "state")
-                        .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
-                        .build();
-            }
+            return MethodSpec
+                    .methodBuilder("to")
+                    .addModifiers(Modifier.PUBLIC)
+                    .addParameter(validator.originalTypeName(), "state")
+                    .returns(stateToClassName)
+                    .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
+                    .build();
         });
+
+        toMethods.wrappedType(() -> MethodSpec
+                .methodBuilder("to")
+                .addModifiers(Modifier.PRIVATE)
+                .returns(stateToClassName)
+                .addParameter(validator.wrappedClassName(), "state")
+                .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
+                .build());
+
+        toMethods.permuteFields(Builder.optional)
+                .fields((fields, className) -> {
+                    if(! (validator instanceof RecordValidator rv)) {
+                        throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
+                    }
+
+                    boolean hasRobotStateField = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
+                    var returnValue = hasRobotStateField ? stateLimitedToClassName : stateToClassName;
+                    var callingMethodName = returnValue.equals(stateToClassName) ? "to" : "limitedTo";
+
+                    MethodSpec.Builder methodBuilder = MethodSpec
+                            .methodBuilder("to")
+                            .addModifiers(Modifier.PUBLIC)
+                            .returns(returnValue);
+
+                    for (var field : fields) {
+                        methodBuilder.addParameter(field.value(), field.name());
+                    }
+
+                    CodeBlock code = CodeBlock
+                            .builder()
+                            .add("return $L(\n", callingMethodName)
+                            .add(
+                                    rv.dataEmitter(fields)
+                                            .withConstructor()
+                                            .withNestedClassesWrapped()
+                                            .emit()
+                            )
+                            .add(");\n")
+                            .build();
+
+                    return methodBuilder.addCode(code).build();
+                });
 
         if (validator instanceof RecordValidator rv && rv.robotStatePresent) {
             var method = MethodSpec
@@ -674,61 +677,59 @@ public class StateMachineGenerator {
                     .build();
         }
 
-        List<MethodSpec> constructors = validator.visitTopLevel(new Validator.Visitor<>() {
-            @Override
-            public MethodSpec acceptUserDataType() {
-                // We disallow using a record class in the constructor publicly just in case the record has a RobotState.
-                var visibility = validator instanceof RecordValidator ? Modifier.PRIVATE : Modifier.PUBLIC;
+        Builder<MethodSpec> constructors = validator.newBuilder();
 
-                return MethodSpec
-                        .constructorBuilder()
-                        .addModifiers(visibility)
-                        .addParameter(validator.originalTypeName(), "initialState")
-                        .addCode("""
+        constructors.userDataType(() -> {
+            // We disallow using a record class in the constructor publicly just in case the record has a RobotState.
+            var visibility = validator instanceof RecordValidator ? Modifier.PRIVATE : Modifier.PUBLIC;
+
+            return MethodSpec
+                    .constructorBuilder()
+                    .addModifiers(visibility)
+                    .addParameter(validator.originalTypeName(), "initialState")
+                    .addCode("""
                                 this.currentState = initialState;
                                 this.currentSubData = this.generateToSubDataStates(initialState);
                                 currentStateTopic.set(currentState.toString());
                                 """)
-                        .build();
-            }
+                    .build();
+        });
 
-            @Override
-            public MethodSpec acceptFields(RecordValidator validator, List<ClassName> fields) {
-                MethodSpec.Builder constructorBuilder = MethodSpec
-                        .constructorBuilder()
-                        .addModifiers(Modifier.PUBLIC);
-
-                for (var type : fields) {
-                    // We don't want to allow the user to include the robotState in the constructor
-                    if (type.equals(robotStateName)) {
-                        continue;
+        constructors
+                .permuteFields(Builder.identity)
+                .fields((fields, className) -> {
+                    if (!(validator instanceof RecordValidator rv)) {
+                        throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
                     }
 
-                    constructorBuilder.addParameter(type, validator.fieldNameMap.get(type));
-                }
+                    MethodSpec.Builder constructorBuilder = MethodSpec
+                            .constructorBuilder()
+                            .addModifiers(Modifier.PUBLIC);
 
-                CodeBlock.Builder code = CodeBlock
-                        .builder()
-                        .add("this(new $T(", validator.originalTypeName())
-                        .add(
-                                validator
-                                        .dataEmitter(fields)
-                                        .withDefaultsSubstituted()
-                                        .emit()
-                        )
-                        .add("));");
+                    for (var field : fields) {
+                        // We don't want to allow the user to include the robotState in the constructor
+                        if (field.value().equals(robotStateName)) {
+                            continue;
+                        }
 
-                constructorBuilder.addCode(code.build());
+                        constructorBuilder.addParameter(field.value(), field.name());
+                    }
 
-                return constructorBuilder.build();
-            }
+                    CodeBlock.Builder code = CodeBlock
+                            .builder()
+                            .add("this(new $T(", validator.originalTypeName())
+                            .add(
+                                    rv
+                                            .dataEmitter(fields)
+                                            .withDefaultsSubstituted()
+                                            .emit()
+                            )
+                            .add("));");
 
-            @Override
-            public MethodSpec acceptWrapperDataType() {
-                // We don't need a state machine constructor that takes the data type we wrap
-                return null;
-            }
-        });
+                    constructorBuilder.addCode(code.build());
+
+                    return constructorBuilder.build();
+                });
 
         MethodSpec currentStateMethod = MethodSpec
                 .methodBuilder("currentState")
@@ -737,138 +738,142 @@ public class StateMachineGenerator {
                 .addStatement("return this.currentState")
                 .build();
 
-        List<MethodSpec> stateMethods = validator.visitPermutations(new Validator.Visitor<>() {
-            @Override
-            public MethodSpec acceptUserDataType() {
-                CodeBlock dataParameter;
-                if (validator instanceof EnumValidator) {
-                    dataParameter = CodeBlock.of("state");
-                } else if (validator instanceof RecordValidator) {
-                    dataParameter = CodeBlock.of("$T.fromRecord(state)", stateDataName);
-                } else {
-                    throw new RuntimeException("Unknown validator type");
-                }
+        Builder<MethodSpec> stateMethods = validator.newBuilder();
 
+        stateMethods.userDataType(() -> {
+            CodeBlock dataParameter;
+            if (validator instanceof EnumValidator) {
+                dataParameter = CodeBlock.of("state");
+            } else if (validator instanceof RecordValidator) {
+                dataParameter = CodeBlock.of("$T.fromRecord(state)", stateDataName);
+            } else {
+                throw new RuntimeException("Unknown validator type");
+            }
+
+            return MethodSpec
+                    .methodBuilder("state")
+                    .addModifiers(Modifier.PUBLIC)
+                    .addParameter(validator.originalTypeName(), "state")
+                    .returns(stateFromClassName)
+                    .addStatement("return new $T(this.manager, $L)", stateFromClassName, dataParameter)
+                    .build();
+        });
+
+        stateMethods.wrappedType(() -> {
+            // Internal use only for our wrapper method
+            return MethodSpec
+                    .methodBuilder("state")
+                    .addModifiers(Modifier.PRIVATE)
+                    .addParameter(validator.wrappedClassName(), "state")
+                    .returns(stateFromClassName)
+                    .addStatement("return new $T(this.manager, state)", stateFromClassName)
+                    .build();
+        });
+
+        stateMethods.permuteFields(Builder.optional)
+                .fields((fields, className) -> {
+                    if (!(validator instanceof RecordValidator rv)) {
+                        throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
+                    }
+
+                    MethodSpec.Builder methodBuilder = MethodSpec
+                            .methodBuilder("state")
+                            .addModifiers(Modifier.PUBLIC)
+                            .returns(stateFromClassName);
+
+                    for (var field : fields) {
+                        methodBuilder.addParameter(field.value(), field.name());
+                    }
+
+                    CodeBlock code = CodeBlock
+                            .builder()
+                            .add("return state(")
+                            .add(
+                                    rv.dataEmitter(fields)
+                                            .withConstructor()
+                                            .withNestedClassesWrapped()
+                                            .emit()
+                            )
+                            .add(");")
+                            .build();
+
+                    return methodBuilder.addCode(code).build();
+                });
+
+        Builder<MethodSpec> transitionToMethods = validator.newBuilder();
+        transitionToMethods.userDataType(() -> {
+            if (validator instanceof EnumValidator) {
                 return MethodSpec
-                        .methodBuilder("state")
+                        .methodBuilder("transitionTo")
                         .addModifiers(Modifier.PUBLIC)
                         .addParameter(validator.originalTypeName(), "state")
-                        .returns(stateFromClassName)
-                        .addStatement("return new $T(this.manager, $L)", stateFromClassName, dataParameter)
-                        .build();
-            }
-
-            @Override
-            public MethodSpec acceptFields(RecordValidator validator, List<ClassName> fields) {
-
-                MethodSpec.Builder methodBuilder = MethodSpec
-                        .methodBuilder("state")
-                        .addModifiers(Modifier.PUBLIC)
-                        .returns(stateFromClassName);
-
-                for (var type : fields) {
-                    methodBuilder.addParameter(type, validator.fieldNameMap.get(type));
-                }
-
-                CodeBlock code = CodeBlock
-                        .builder()
-                        .add("return state(")
-                        .add(
-                                validator.dataEmitter(fields)
-                                        .withConstructor()
-                                        .withNestedClassesWrapped()
-                                        .emit()
-                        )
-                        .add(");")
-                        .build();
-
-                return methodBuilder.addCode(code).build();
-            }
-
-            @Override
-            public MethodSpec acceptWrapperDataType() {
-                // Internal use only for our wrapper method
-                return MethodSpec
-                        .methodBuilder("state")
-                        .addModifiers(Modifier.PRIVATE)
-                        .addParameter(validator.wrappedClassName(), "state")
-                        .returns(stateFromClassName)
-                        .addStatement("return new $T(this.manager, state)", stateFromClassName)
-                        .build();
-            }
-        });
-
-        List<MethodSpec> transitionToMethods = validator.visitPermutations(new Validator.Visitor<>() {
-            @Override
-            public MethodSpec acceptUserDataType() {
-                if (validator instanceof EnumValidator) {
-                    return MethodSpec
-                            .methodBuilder("transitionTo")
-                            .addModifiers(Modifier.PUBLIC)
-                            .addParameter(validator.originalTypeName(), "state")
-                            .returns(Command.class)
-                            .addStatement("return $T.runOnce(() -> updateState(state)).ignoringDisable(true)", Commands.class)
-                            .build();
-                } else if (validator instanceof RecordValidator) {
-                    /*
-                    We don't make a transitionTo method for a record as the record could contain the RobotState and the
-                    user should not be able to force that transition. We could theoretically check if the record had a
-                    RobotState as one of its components, but then the method might "disappear" from the user's
-                    perspective. We could ignore the robot state when updating our internal state, but that might be
-                    confusing for the user who either expected that transition to hold or didn't know what value to put
-                    for Robot State.
-                     */
-                    return null;
-                } else {
-                    throw new RuntimeException("Unknown validator type");
-                }
-            }
-
-            @Override
-            public MethodSpec acceptFields(RecordValidator validator, List<ClassName> fields) {
-                if (fields.contains(robotStateName)) {
-                    // We don't want to allow the user to ever transition to a specific RobotState
-                    return null;
-                }
-
-                MethodSpec.Builder methodBuilder = MethodSpec
-                        .methodBuilder("transitionTo")
-                        .addModifiers(Modifier.PUBLIC)
-                        .returns(Command.class);
-
-                for (var type : fields) {
-                    methodBuilder.addParameter(type, validator.fieldNameMap.get(type));
-                }
-
-                CodeBlock code = CodeBlock
-                        .builder()
-                        .add("return transitionTo(")
-                        .add(
-                                validator.dataEmitter(fields)
-                                        .withConstructor()
-                                        .withNestedClassesWrapped()
-                                        .emit()
-                        )
-                        .add(");")
-                        .build();
-
-                return methodBuilder.addCode(code).build();
-            }
-
-            @Override
-            public MethodSpec acceptWrapperDataType() {
-                return MethodSpec
-                        .methodBuilder("transitionTo")
-                        .addModifiers(Modifier.PRIVATE)
-                        .addParameter(validator.wrappedClassName(), "state")
                         .returns(Command.class)
-                        .addCode("""
-                                        return $T.runOnce(() -> updateState(state)).ignoringDisable(true);
-                                        """,
-                                Commands.class)
+                        .addStatement("return $T.runOnce(() -> updateState(state)).ignoringDisable(true)", Commands.class)
                         .build();
+            } else if (validator instanceof RecordValidator) {
+                /*
+                We don't make a transitionTo method for a record as the record could contain the RobotState and the
+                user should not be able to force that transition. We could theoretically check if the record had a
+                RobotState as one of its components, but then the method might "disappear" from the user's
+                perspective. We could ignore the robot state when updating our internal state, but that might be
+                confusing for the user who either expected that transition to hold or didn't know what value to put
+                for Robot State.
+                 */
+                return null;
+            } else {
+                throw new RuntimeException("Unknown validator type");
             }
         });
+
+        transitionToMethods.wrappedType(() -> MethodSpec
+                .methodBuilder("transitionTo")
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter(validator.wrappedClassName(), "state")
+                .returns(Command.class)
+                .addCode("""
+                                return $T.runOnce(() -> updateState(state)).ignoringDisable(true);
+                                """,
+                        Commands.class)
+                .build());
+
+        transitionToMethods.permuteFields(Builder.optional)
+                .fields(new BiFunction<List<Field<ClassName>>, ClassName, MethodSpec>() {
+                    @Override
+                    public MethodSpec apply(List<Field<ClassName>> fields, ClassName className) {
+                        if (!(validator instanceof RecordValidator rv)) {
+                            throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
+                        }
+
+                        boolean hasRobotStateField = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
+                        if (hasRobotStateField) {
+                            // We don't want to allow the user to ever transition to a specific RobotState
+                            return null;
+                        }
+
+                        MethodSpec.Builder methodBuilder = MethodSpec
+                                .methodBuilder("transitionTo")
+                                .addModifiers(Modifier.PUBLIC)
+                                .returns(Command.class);
+
+                        for (var field : fields) {
+                            methodBuilder.addParameter(field.value(), field.name());
+                        }
+
+                        CodeBlock code = CodeBlock
+                                .builder()
+                                .add("return transitionTo(")
+                                .add(
+                                        rv.dataEmitter(fields)
+                                                .withConstructor()
+                                                .withNestedClassesWrapped()
+                                                .emit()
+                                )
+                                .add(");")
+                                .build();
+
+                        return methodBuilder.addCode(code).build();
+                    }
+                });
 
         MethodSpec runPollCommandMethod = MethodSpec
                 .methodBuilder("runPollCommand")
@@ -886,6 +891,11 @@ public class StateMachineGenerator {
                 .addStatement("$T nextState = this.getNextState()", stateDataName);
 
         if (validator instanceof RecordValidator rv && rv.robotStatePresent) {
+            var robotFieldOption = rv.fields.stream().filter(f -> f.value().equals(robotStateName)).findFirst();
+            if(robotFieldOption.isEmpty()) {
+                throw new RuntimeException("Robot state was supposedly present but we couldn't find the field");
+            }
+
             pollMethodBuilder.addCode(
                     """
                             this.controlWord.refresh();
@@ -907,7 +917,7 @@ public class StateMachineGenerator {
                             }
                             """,
                     stateDataName,
-                    rv.fieldToInnerClass.get(List.of(robotStateName)));
+                    rv.fieldToInnerClass.get(List.of(robotFieldOption.get())));
         }
 
         pollMethodBuilder.addCode(
@@ -1050,12 +1060,11 @@ public class StateMachineGenerator {
             updateStateMethodBuilder
                     .addStatement("var nextState = nextStateData");
         } else if (validator instanceof RecordValidator rv) {
-            for (var type : rv.fields) {
-                var fieldName = rv.fieldNameMap.get(type);
+            for (var field : rv.fields) {
                 updateStateMethodBuilder.addStatement(
                         "var $1LData = $3T.get$2L(nextStateData)",
-                        fieldName,
-                        Util.ucfirst(fieldName),
+                        field.name(),
+                        Util.ucfirst(field.name()),
                         rv.wrappedClassName()
                 );
             }
@@ -1064,21 +1073,21 @@ public class StateMachineGenerator {
 
             code.add("$[var nextState = new $T(\n", rv.originalTypeName());
 
-            List<ClassName> fieldTypes = rv.fields;
-            for (int i = 0; i < fieldTypes.size(); i++) {
-                var type = fieldTypes.get(i);
-                var fieldName = rv.fieldNameMap.get(type);
+            var fields = rv.fields;
+            for (int i = 0; i < fields.size(); i++) {
+                var field = fields.get(i);
+                var fieldName = field.name();
                 var otherData = CodeBlock.of("$1LData", fieldName);
 
-                if (rv.nestedRecords.containsKey(type)) {
-                    var dataType = rv.nestedRecords.get(type);
+                if (rv.nestedRecords.containsKey(field.value())) {
+                    var dataType = rv.nestedRecords.get(field.value());
                     otherData = CodeBlock.of("$1T.toRecord($2LData)", dataType, fieldName);
-                } else if (rv.nestedInterfaces.containsKey(type)) {
+                } else if (rv.nestedInterfaces.containsKey(field.value())) {
                     otherData = CodeBlock.of("$1LData.data()", fieldName);
                 }
 
                 code.add("$1LData == null ? currentState.$1L() : $2L", fieldName, otherData);
-                if (i + 1 != fieldTypes.size()) {
+                if (i + 1 != fields.size()) {
                     code.add(",");
                 }
                 code.add("\n");
@@ -1218,7 +1227,7 @@ public class StateMachineGenerator {
                                 .addStatement("$1T result = new $2T<>()", subDataSetType, HashSet.class);
 
                         rv.fields.forEach(
-                                (className) -> generateSubDataStateBuilder.addStatement("$1T $2LField = state.$2L()", className, rv.fieldNameMap.get(className))
+                                (field) -> generateSubDataStateBuilder.addStatement("$1T $2LField = state.$2L()", field.value(), field.name())
                         );
 
                         fieldMap
