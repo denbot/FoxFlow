@@ -1,5 +1,6 @@
 package bot.den.foxflow.validator;
 
+import bot.den.foxflow.builders.Builder;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.TypeName;
 
@@ -16,13 +17,5 @@ public interface Validator {
 
     boolean supportsStateTransition();
 
-    <R> List<R> visitTopLevel(Visitor<R> visitor);
-
-    <R> List<R> visitPermutations(Visitor<R> visitor);
-
-    interface Visitor<T> {
-        T acceptUserDataType();
-        T acceptFields(RecordValidator validator, List<ClassName> fields);
-        T acceptWrapperDataType();
-    }
+    <R> Builder<R> newBuilder();
 }
