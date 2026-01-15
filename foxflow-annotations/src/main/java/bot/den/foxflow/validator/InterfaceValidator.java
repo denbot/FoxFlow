@@ -4,6 +4,7 @@ import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.Environment;
 import bot.den.foxflow.LimitsTypeTransitions;
 import bot.den.foxflow.Util;
+import bot.den.foxflow.builders.Builder;
 import com.palantir.javapoet.*;
 import edu.wpi.first.units.measure.Time;
 
@@ -54,12 +55,7 @@ public class InterfaceValidator implements Validator {
     }
 
     @Override
-    public <R> List<R> visitTopLevel(Visitor<R> visitor) {
-        throw new UnsupportedOperationException("Not currently supported on interfaces");
-    }
-
-    @Override
-    public <R> List<R> visitPermutations(Visitor<R> visitor) {
+    public <R> Builder<R> newBuilder() {
         throw new UnsupportedOperationException("Not currently supported on interfaces");
     }
 

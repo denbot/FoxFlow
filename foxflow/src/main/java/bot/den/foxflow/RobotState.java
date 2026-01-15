@@ -8,7 +8,7 @@ package bot.den.foxflow;
  */
 public enum RobotState {
     /** Robot is disabled */
-    DISABLED,
+    @DefaultState(userCanOverride = false) DISABLED,
     /** Robot is in autonomous enabled mode */
     AUTO,
     /** Robot is in teleoperated enabled mode */

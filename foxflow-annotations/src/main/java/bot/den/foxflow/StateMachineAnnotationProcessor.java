@@ -9,8 +9,8 @@ import java.util.Optional;
 import java.util.Set;
 
 public class StateMachineAnnotationProcessor extends AbstractProcessor {
-    private final String stateMachineAnnotationClass = "bot.den.foxflow.StateMachine";
-    private final String defaultStateAnnotationClass = "bot.den.foxflow.DefaultState";
+    public static final String stateMachineAnnotationClass = StateMachine.class.getTypeName();
+    public static final String defaultStateAnnotationClass = DefaultState.class.getTypeName();
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {

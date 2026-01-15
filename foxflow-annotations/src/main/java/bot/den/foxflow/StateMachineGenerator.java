@@ -23,7 +23,6 @@ import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.*;
 import java.util.*;
 import java.util.function.BooleanSupplier;
-import java.util.function.Function;
 
 public class StateMachineGenerator {
     final ProcessingEnvironment processingEnv;
@@ -744,8 +743,8 @@ public class StateMachineGenerator {
                 CodeBlock dataParameter;
                 if (validator instanceof EnumValidator) {
                     dataParameter = CodeBlock.of("state");
-                } else if (validator instanceof RecordValidator rv) {
-                    dataParameter = CodeBlock.of("$T.fromRecord(state)", rv.wrappedClassName());
+                } else if (validator instanceof RecordValidator) {
+                    dataParameter = CodeBlock.of("$T.fromRecord(state)", stateDataName);
                 } else {
                     throw new RuntimeException("Unknown validator type");
                 }
@@ -1051,7 +1050,7 @@ public class StateMachineGenerator {
             updateStateMethodBuilder
                     .addStatement("var nextState = nextStateData");
         } else if (validator instanceof RecordValidator rv) {
-            for (var type : rv.fieldTypes) {
+            for (var type : rv.fields) {
                 var fieldName = rv.fieldNameMap.get(type);
                 updateStateMethodBuilder.addStatement(
                         "var $1LData = $3T.get$2L(nextStateData)",
@@ -1065,7 +1064,7 @@ public class StateMachineGenerator {
 
             code.add("$[var nextState = new $T(\n", rv.originalTypeName());
 
-            List<ClassName> fieldTypes = rv.fieldTypes;
+            List<ClassName> fieldTypes = rv.fields;
             for (int i = 0; i < fieldTypes.size(); i++) {
                 var type = fieldTypes.get(i);
                 var fieldName = rv.fieldNameMap.get(type);
@@ -1218,7 +1217,7 @@ public class StateMachineGenerator {
                         generateSubDataStateBuilder
                                 .addStatement("$1T result = new $2T<>()", subDataSetType, HashSet.class);
 
-                        rv.fieldTypes.forEach(
+                        rv.fields.forEach(
                                 (className) -> generateSubDataStateBuilder.addStatement("$1T $2LField = state.$2L()", className, rv.fieldNameMap.get(className))
                         );
 

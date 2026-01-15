@@ -1,9 +1,9 @@
 package bot.den.foxflow.validator;
 
 import bot.den.foxflow.*;
+import bot.den.foxflow.builders.Builder;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import com.palantir.javapoet.*;
-import com.palantir.javapoet.TypeSpec.Builder;
 import edu.wpi.first.units.measure.Time;
 
 import javax.lang.model.element.ElementKind;
@@ -12,13 +12,11 @@ import javax.lang.model.element.TypeElement;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class RecordValidator implements Validator {
-    public final List<ClassName> fieldTypes;
-    public final Map<ClassName, String> fieldNameMap;
-    public final Map<List<ClassName>, ClassName> fieldToInnerClass;
-    public final Map<ClassName, List<ClassName>> innerClassToField;
+    public final List<Field<ClassName>> fields;
+    public final Map<List<Field<ClassName>>, ClassName> fieldToInnerClass;
+    public final Map<ClassName, List<Field<ClassName>>> innerClassToField;
     public final boolean robotStatePresent;
     public final List<TypeSpec> typesToWrite = new ArrayList<>();
 
@@ -33,7 +31,7 @@ public class RecordValidator implements Validator {
     private final ClassName robotStateName;
     private final ClassName pairName;
     private final ClassName timeName;
-    private final Set<List<ClassName>> permutations;
+    private final Set<List<Field<ClassName>>> permutations;
 
     public RecordValidator(Environment environment) {
         var typeElement = environment.element();
@@ -111,10 +109,12 @@ public class RecordValidator implements Validator {
             });
         }
 
-        fieldTypes = validators
-                .stream()
-                .map(Validator::originalTypeName)
-                .toList();
+        fields = new ArrayList<>();
+        for (var component : recordComponents) {
+            var typeName = ClassName.get((TypeElement) typeUtils.asElement(component.asType()));
+            var variableName = component.getSimpleName().toString();
+            fields.add(new Field<>(typeName, variableName));
+        }
 
         supportsStateTransition = validators
                 .stream()
@@ -123,14 +123,7 @@ public class RecordValidator implements Validator {
                         Validator::supportsStateTransition
                 ));
 
-        fieldNameMap = new HashMap<>();
-        for (var component : recordComponents) {
-            var typeName = ClassName.get((TypeElement) typeUtils.asElement(component.asType()));
-            var variableName = component.getSimpleName().toString();
-            fieldNameMap.put(typeName, variableName);
-        }
-
-        permutations = new PermutationBuilder<>(fieldTypes).get();
+        permutations = new PermutationBuilder<>(fields).get();
 
         fieldToInnerClass = new HashMap<>();
         innerClassToField = new HashMap<>();
@@ -146,7 +139,7 @@ public class RecordValidator implements Validator {
         }
 
         robotStateName = ClassName.get(RobotState.class);
-        robotStatePresent = fieldTypes.contains(robotStateName);
+        robotStatePresent = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
         typesToWrite.add(createRecordWrapper());
     }
 
@@ -165,7 +158,7 @@ public class RecordValidator implements Validator {
     }
 
     public class DataEmitter {
-        private final List<ClassName> fields;
+        private final List<Field<ClassName>> fields;
         private final ClassName dataClass;
         private boolean emitConstructor = false;
         private boolean substituteDefaults = false;
@@ -173,7 +166,7 @@ public class RecordValidator implements Validator {
 
         private Function<String, String> transformFieldName = Function.identity();
 
-        DataEmitter(List<ClassName> fields) {
+        DataEmitter(List<Field<ClassName>> fields) {
             this.fields = fields;
             this.dataClass = fieldToInnerClass.get(fields);
         }
@@ -207,8 +200,10 @@ public class RecordValidator implements Validator {
 
             List<CodeBlock> fieldCodes = this.fields
                     .stream()
-                    .map(type -> {
-                        var fieldName = transformFieldName.apply(fieldNameMap.get(type));
+                    .map(field -> {
+                        var fieldName = transformFieldName.apply(field.fieldName());
+
+                        var type = field.value();
 
                         if (substituteDefaults && type.equals(robotStateName)) {
                             return CodeBlock.of("$T.DISABLED", RobotState.class);
@@ -232,7 +227,7 @@ public class RecordValidator implements Validator {
         }
     }
 
-    public DataEmitter dataEmitter(List<ClassName> fields) {
+    public DataEmitter dataEmitter(List<Field<ClassName>> fields) {
         return new DataEmitter(fields);
     }
 
@@ -267,29 +262,8 @@ public class RecordValidator implements Validator {
     }
 
     @Override
-    public <R> List<R> visitTopLevel(Visitor<R> visitor) {
-        return Stream.of(
-                        visitor.acceptUserDataType(),
-                        visitor.acceptFields(this, fieldTypes),
-                        visitor.acceptWrapperDataType()
-                )
-                .filter(Objects::nonNull)
-                .collect(Collectors.toList());
-    }
-
-    @Override
-    public <R> List<R> visitPermutations(Visitor<R> visitor) {
-        List<R> result = new ArrayList<>();
-
-        result.add(visitor.acceptUserDataType());
-
-        for (var types : permutations) {
-            result.add(visitor.acceptFields(this, types));
-        }
-
-        result.add(visitor.acceptWrapperDataType());
-
-        return result.stream().filter(Objects::nonNull).collect(Collectors.toList());
+    public <R> bot.den.foxflow.builders.Builder<R> newBuilder() {
+        return new Builder<>(fields, fieldToInnerClass);
     }
 
     private TypeSpec createRecordWrapper() {
@@ -311,28 +285,28 @@ public class RecordValidator implements Validator {
         }
 
         // Inner classes that hold subsets of our data for easy passing around and manipulation
-        for (List<ClassName> types : permutations) {
+        for (var types : permutations) {
             recordInterfaceBuilder.addType(createInnerClass(types));
         }
 
         // Next up, we need a helper method for each of the original record fields that help us with comparing if states can transition
         {
-            for (var entryType : fieldTypes) {
-                var dataTypeName = entryType;
-                if (nestedRecords.containsKey(entryType)) {
-                    dataTypeName = nestedRecords.get(entryType);
-                } else if (nestedInterfaces.containsKey(entryType)) {
-                    dataTypeName = nestedInterfaces.get(entryType);
+            for (var field : fields) {
+                var dataTypeName = field.value();
+                if (nestedRecords.containsKey(dataTypeName)) {
+                    dataTypeName = nestedRecords.get(dataTypeName);
+                } else if (nestedInterfaces.containsKey(dataTypeName)) {
+                    dataTypeName = nestedInterfaces.get(dataTypeName);
                 }
-                var entryName = fieldNameMap.get(entryType);
+                var entryName = field.fieldName();
 
                 MethodSpec.Builder extractorMethodBuilder = MethodSpec
                         .methodBuilder("get" + Util.ucfirst(entryName))
                         .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                         .returns(dataTypeName)
                         .addParameter(wrappedTypeName, "data");
-                for (List<ClassName> types : permutations) {
-                    if (!types.contains(entryType)) {
+                for (List<Field<ClassName>> types : permutations) {
+                    if (!types.contains(field)) {
                         continue;
                     }
 
@@ -351,22 +325,23 @@ public class RecordValidator implements Validator {
         }
 
         // We need this in the toData / fromRecord classes
-        ClassName allFieldsPresentClass = fieldToInnerClass.get(fieldTypes);
+        ClassName allFieldsPresentClass = fieldToInnerClass.get(fields);
 
         // getRecord: User record class -> Our data class
         {
-            List<CodeBlock> arguments = fieldTypes
+            List<CodeBlock> arguments = fields
                     .stream()
-                    .map(cn -> {
-                        String fieldName = fieldNameMap.get(cn);
-                        if (nestedRecords.containsKey(cn)) {
-                            var nestedDataType = nestedRecords.get(cn);
-                            return CodeBlock.of("$1T.fromRecord(record.$2L())", nestedDataType, fieldName);
-                        } else if (nestedInterfaces.containsKey(cn)) {
-                            var nestedDataType = nestedInterfaces.get(cn);
-                            return CodeBlock.of("$1T.fromRecord(record.$2L())", nestedDataType, fieldName);
+                    .map(field -> {
+                        String name = field.fieldName();
+                        ClassName type = field.value();
+                        if (nestedRecords.containsKey(type)) {
+                            var nestedDataType = nestedRecords.get(type);
+                            return CodeBlock.of("$1T.fromRecord(record.$2L())", nestedDataType, name);
+                        } else if (nestedInterfaces.containsKey(type)) {
+                            var nestedDataType = nestedInterfaces.get(type);
+                            return CodeBlock.of("$1T.fromRecord(record.$2L())", nestedDataType, name);
                         }
-                        return CodeBlock.of("record.$1L()", fieldName);
+                        return CodeBlock.of("record.$1L()", name);
                     })
                     .toList();
 
@@ -383,17 +358,18 @@ public class RecordValidator implements Validator {
 
         // toRecord: Our data class -> User record class
         {
-            List<CodeBlock> arguments = fieldTypes
+            List<CodeBlock> arguments = fields
                     .stream()
-                    .map(cn -> {
-                        String fieldName = fieldNameMap.get(cn);
-                        if (nestedRecords.containsKey(cn)) {
-                            var nestedDataType = nestedRecords.get(cn);
-                            return CodeBlock.of("$1T.toRecord(castData.$2L())", nestedDataType, fieldName);
-                        } else if (nestedInterfaces.containsKey(cn)) {
-                            return CodeBlock.of("castData.$1L().data()", fieldName);
+                    .map(field -> {
+                        String name = field.fieldName();
+                        ClassName type = field.value();
+                        if (nestedRecords.containsKey(type)) {
+                            var nestedDataType = nestedRecords.get(type);
+                            return CodeBlock.of("$1T.toRecord(castData.$2L())", nestedDataType, name);
+                        } else if (nestedInterfaces.containsKey(type)) {
+                            return CodeBlock.of("castData.$1L().data()", name);
                         }
-                        return CodeBlock.of("castData.$1L()", fieldName);
+                        return CodeBlock.of("castData.$1L()", name);
                     })
                     .toList();
 
@@ -478,26 +454,26 @@ public class RecordValidator implements Validator {
         return recordInterfaceBuilder.build();
     }
 
-    private TypeSpec createInnerClass(List<ClassName> types) {
+    private TypeSpec createInnerClass(List<Field<ClassName>> types) {
         MethodSpec.Builder recordConstructor = MethodSpec
                 .constructorBuilder();
 
         List<CodeBlock> attemptTransitions = new ArrayList<>();
         List<CodeBlock> compareTransitions = new ArrayList<>();
 
-        for (ClassName typeName : types) {
+        for (var field : types) {
             // Add the type parameter to the constructor
-            String fieldName = fieldNameMap.get(typeName);
-            var dataTypeName = typeName;
-            if (nestedRecords.containsKey(typeName)) {
-                dataTypeName = nestedRecords.get(typeName);
-            } else if (nestedInterfaces.containsKey(typeName)) {
-                dataTypeName = nestedInterfaces.get(typeName);
+            String fieldName = field.fieldName();
+            var dataTypeName = field.value();
+            if (nestedRecords.containsKey(dataTypeName)) {
+                dataTypeName = nestedRecords.get(dataTypeName);
+            } else if (nestedInterfaces.containsKey(dataTypeName)) {
+                dataTypeName = nestedInterfaces.get(dataTypeName);
             }
 
             recordConstructor.addParameter(dataTypeName, fieldName);
 
-            var checkStateTransition = supportsStateTransition.get(typeName);
+            var checkStateTransition = supportsStateTransition.get(dataTypeName);
             if (checkStateTransition) {
                 compareTransitions.add(CodeBlock.of(
                         """
@@ -523,7 +499,7 @@ public class RecordValidator implements Validator {
 
         ClassName nestedName = fieldToInnerClass.get(types);
 
-        Builder innerClass = TypeSpec
+        TypeSpec.Builder innerClass = TypeSpec
                 .recordBuilder(nestedName)
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .recordConstructor(recordConstructor.build())
@@ -569,7 +545,7 @@ public class RecordValidator implements Validator {
                     .sorted(Comparator.comparing(e -> e.getKey().simpleName()))
                     .forEach(entry -> {
                         var otherInnerClass = entry.getKey();
-                        Set<ClassName> commonFields = new HashSet<>(entry.getValue());
+                        var commonFields = new HashSet<>(entry.getValue());
                         commonFields.retainAll(types);
 
                         MethodSpec.Builder canMergeMethodBuilder = MethodSpec
@@ -584,7 +560,7 @@ public class RecordValidator implements Validator {
                             CodeBlock code = CodeBlock.join(
                                     commonFields
                                             .stream()
-                                            .map(f -> CodeBlock.of("this.$1L.equals(data.$1L)", fieldNameMap.get(f)))
+                                            .map(f -> CodeBlock.of("this.$1L.equals(data.$1L)", f.fieldName()))
                                             .toList(),
                                     " && "
                             );
@@ -599,18 +575,18 @@ public class RecordValidator implements Validator {
                                 .addParameter(otherInnerClass, "data")
                                 .returns(wrappedTypeName);
 
-                        Set<ClassName> allFields = new HashSet<>(entry.getValue());
+                        var allFields = new HashSet<>(entry.getValue());
                         allFields.addAll(types);
                         // We have to filter the fieldTypes to make sure we get the list of common fields in order
-                        List<ClassName> fieldsCorrectOrder = fieldTypes.stream().filter(allFields::contains).toList();
+                        var fieldsCorrectOrder = fields.stream().filter(allFields::contains).toList();
                         ClassName commonInnerClass = fieldToInnerClass.get(fieldsCorrectOrder);
 
                         CodeBlock mergeCode = CodeBlock.join(
                                 fieldsCorrectOrder
                                         .stream()
                                         .map(f -> entry.getValue().contains(f) ?
-                                                CodeBlock.of("data.$1L", fieldNameMap.get(f)) :
-                                                CodeBlock.of("this.$1L", fieldNameMap.get(f)))
+                                                CodeBlock.of("data.$1L", f.fieldName()) :
+                                                CodeBlock.of("this.$1L", f.fieldName()))
                                         .toList(),
                                 ",\n"
                         );
