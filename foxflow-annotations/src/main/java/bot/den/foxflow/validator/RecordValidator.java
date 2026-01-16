@@ -4,6 +4,7 @@ import bot.den.foxflow.*;
 import bot.den.foxflow.builders.Builder;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import com.palantir.javapoet.*;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Time;
 
 import javax.lang.model.element.Element;
@@ -11,7 +12,6 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -216,11 +216,6 @@ public class RecordValidator implements Validator {
             recordInterfaceBuilder.addSuperinterface(limitsStateTransitions);
         }
 
-        // Inner classes that hold subsets of our data for easy passing around and manipulation
-        for (var types : permutations) {
-            recordInterfaceBuilder.addType(createInnerClass(types));
-        }
-
         // Next up, we need a helper method for each of the original record fields that help us with comparing if states can transition
         {
             for (var field : fields) {
@@ -322,20 +317,7 @@ public class RecordValidator implements Validator {
             recordInterfaceBuilder.addMethod(toRecordMethod);
         }
 
-        // Make merge methods for specific concrete types
-        for (var types : permutations) {
-            ClassName concreteType = fieldToInnerClass.get(types);
-
-            MethodSpec mergeMethod = MethodSpec
-                    .methodBuilder("merge")
-                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                    .addParameter(concreteType, "data")
-                    .returns(wrappedTypeName)
-                    .build();
-
-            recordInterfaceBuilder.addMethod(mergeMethod);
-        }
-
+        // canMerge any two data interfaces
         {
             MethodSpec.Builder canMergeMethodBuilder = MethodSpec
                     .methodBuilder("canMerge")
@@ -348,32 +330,82 @@ public class RecordValidator implements Validator {
                                     .toList(),
                             "\n"
                     ))
-                    .addStatement("return $1L",
+                    .addStatement("\nreturn $1L",
                             CodeBlock.join(
                                     fields.stream()
                                             .map(f -> CodeBlock.of("(this_$1L == null || data_$1L == null || this_$1L.equals(data_$1L))", f.name()))
                                             .toList(),
-                                    " && ")
+                                    " && \n")
                     );
 
             recordInterfaceBuilder.addMethod(canMergeMethodBuilder.build());
         }
 
-        // We also need ones for the data interface
+        // Merge any two data interfaces
+        var topLevelDataSubclass = fieldToInnerClass.get(fields);
+        boolean needsRemoveNulls = innerClassToField.get(topLevelDataSubclass).size() > 1;
         {
-            MethodSpec.Builder mergeMethodBuilder = MethodSpec
+            MethodSpec mergeMethodBuilder = MethodSpec
                     .methodBuilder("merge")
                     .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                     .addParameter(wrappedTypeName, "data")
-                    .returns(wrappedTypeName);
+                    .returns(wrappedTypeName)
+                    .addCode(CodeBlock.join(
+                            fields.stream()
+                                    .map(f -> CodeBlock.of("var this_$1L = get$2L(this);\nvar data_$1L = get$2L(data);", f.name(), Util.ucfirst(f.name())))
+                                    .toList(),
+                            "\n"
+                    ))
+                    .addCode("""
+                            \n
+                            return $1L$2L;
+                            """,
+                            dataEmitter(topLevelDataSubclass)
+                                    .withConstructor()
+                                    .withTransform("this_%1$s == null ? data_%1$s : this_%1$s"::formatted)
+                                    .emit(),
+                            needsRemoveNulls ? ".removeNulls()" : ""
+                    ).build();
 
-            for (var innerClass : innerClassToField.keySet()) {
-                mergeMethodBuilder.addStatement("if (data instanceof $T s) return merge(s)", innerClass);
+            recordInterfaceBuilder.addMethod(mergeMethodBuilder);
+        }
+
+        // removeNulls for the required data types
+        Map<ClassName, List<ClassName>> removeNullsMap = new HashMap<>();
+        if(needsRemoveNulls) {
+            Queue<Pair<ClassName, Integer>> queue = new LinkedList<>();
+            queue.add(new Pair<>(topLevelDataSubclass, -1));
+
+            while(!queue.isEmpty()) {
+                var pair = queue.poll();
+                var subDataClass = pair.getFirst();
+                var lastRemovedIndex = pair.getSecond();
+
+                List<ClassName> children = new ArrayList<>();
+
+                for (int toRemoveIndex = lastRemovedIndex + 1; toRemoveIndex < fields.size(); toRemoveIndex++) {
+                    List<Field<ClassName>> fieldsWithRemovedElement = new ArrayList<>(fields);
+                    fieldsWithRemovedElement.remove(toRemoveIndex);
+
+                    List<Field<ClassName>> subDataFields = new ArrayList<>(innerClassToField.get(subDataClass));
+                    subDataFields.retainAll(fieldsWithRemovedElement);
+
+                    var childSubData = fieldToInnerClass.get(subDataFields);
+                    children.add(childSubData);
+
+                    if(subDataFields.size() > 1 && toRemoveIndex + 1 < fields.size()) {
+                        queue.add(new Pair<>(childSubData, toRemoveIndex));
+                    }
+                }
+
+                removeNullsMap.put(subDataClass, children);
             }
+        }
 
-            mergeMethodBuilder.addStatement("return null");
-
-            recordInterfaceBuilder.addMethod(mergeMethodBuilder.build());
+        // Inner classes that hold subsets of our data for easy passing around and manipulation
+        for (var types : permutations) {
+            ClassName nestedName = fieldToInnerClass.get(types);
+            recordInterfaceBuilder.addType(createInnerClass(nestedName, removeNullsMap.get(nestedName)));
         }
 
         MethodSpec numElements = MethodSpec
@@ -390,12 +422,14 @@ public class RecordValidator implements Validator {
         return recordInterfaceBuilder.build();
     }
 
-    private TypeSpec createInnerClass(List<Field<ClassName>> types) {
+    private TypeSpec createInnerClass(ClassName nestedName, List<ClassName> removeNulls) {
         MethodSpec.Builder recordConstructor = MethodSpec
                 .constructorBuilder();
 
         List<CodeBlock> attemptTransitions = new ArrayList<>();
         List<CodeBlock> compareTransitions = new ArrayList<>();
+
+        var types = innerClassToField.get(nestedName);
 
         for (var field : types) {
             // Add the type parameter to the constructor
@@ -432,8 +466,6 @@ public class RecordValidator implements Validator {
                 ));
             }
         }
-
-        ClassName nestedName = fieldToInnerClass.get(types);
 
         TypeSpec.Builder innerClass = TypeSpec
                 .recordBuilder(nestedName)
@@ -473,69 +505,6 @@ public class RecordValidator implements Validator {
             innerClass.addMethod(attemptTransitionTo);
         }
 
-        // Make merge methods for specific concrete types
-        {
-            innerClassToField
-                    .entrySet()
-                    .stream()
-                    .sorted(Comparator.comparing(e -> e.getKey().simpleName()))
-                    .forEach(entry -> {
-                        var otherInnerClass = entry.getKey();
-//                        var commonFields = new HashSet<>(entry.getValue());
-//                        commonFields.retainAll(types);
-//
-//                        MethodSpec.Builder canMergeMethodBuilder = MethodSpec
-//                                .methodBuilder("canMerge")
-//                                .addModifiers(Modifier.PUBLIC)
-//                                .addParameter(otherInnerClass, "data")
-//                                .returns(boolean.class);
-//
-//                        if (commonFields.isEmpty()) {
-//                            canMergeMethodBuilder.addStatement("return true");
-//                        } else {
-//                            CodeBlock code = CodeBlock.join(
-//                                    commonFields
-//                                            .stream()
-//                                            .map(f -> CodeBlock.of("this.$1L.equals(data.$1L)", f.name()))
-//                                            .toList(),
-//                                    " && "
-//                            );
-//                            canMergeMethodBuilder.addStatement("return $1L", code);
-//                        }
-//
-//                        innerClass.addMethod(canMergeMethodBuilder.build());
-
-                        MethodSpec.Builder mergeMethodBuilder = MethodSpec
-                                .methodBuilder("merge")
-                                .addModifiers(Modifier.PUBLIC)
-                                .addParameter(otherInnerClass, "data")
-                                .returns(wrappedTypeName);
-
-                        var allFields = new HashSet<>(entry.getValue());
-                        allFields.addAll(types);
-                        // We have to filter the fieldTypes to make sure we get the list of common fields in order
-                        var fieldsCorrectOrder = fields.stream().filter(allFields::contains).toList();
-                        ClassName commonInnerClass = fieldToInnerClass.get(fieldsCorrectOrder);
-
-                        CodeBlock mergeCode = CodeBlock.join(
-                                fieldsCorrectOrder
-                                        .stream()
-                                        .map(f -> entry.getValue().contains(f) ?
-                                                CodeBlock.of("data.$1L", f.name()) :
-                                                CodeBlock.of("this.$1L", f.name()))
-                                        .toList(),
-                                ",\n"
-                        );
-                        mergeMethodBuilder.addCode("""
-                                return new $1T(
-                                    $2L
-                                );
-                                """, commonInnerClass, mergeCode);
-
-                        innerClass.addMethod(mergeMethodBuilder.build());
-                    });
-        }
-
         MethodSpec numElements = MethodSpec
                 .methodBuilder("numElements")
                 .addModifiers(Modifier.PUBLIC)
@@ -544,6 +513,30 @@ public class RecordValidator implements Validator {
                 .build();
 
         innerClass.addMethod(numElements);
+
+        if(removeNulls != null) {
+            MethodSpec.Builder removeNullsMethod = MethodSpec
+                    .methodBuilder("removeNulls")
+                    .returns(wrappedTypeName);
+
+            for (ClassName childClass : removeNulls) {
+                var fieldDifference = new ArrayList<>(innerClassToField.get(nestedName));
+                fieldDifference.removeAll(innerClassToField.get(childClass));
+
+                // Field difference only has one element now by definition of the parent/child relationship
+                var field = fieldDifference.get(0);
+
+                removeNullsMethod.addStatement(
+                        "if(this.$1L == null) return $2L",
+                        field.name(),
+                        dataEmitter(childClass).withConstructor().emit()
+                );
+            }
+
+            removeNullsMethod.addStatement("return this");
+
+            innerClass.addMethod(removeNullsMethod.build());
+        }
 
         return innerClass.build();
     }
