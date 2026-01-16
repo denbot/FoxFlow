@@ -282,7 +282,7 @@ public class RecordValidator implements Validator {
                     .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                     .addParameter(originalTypeName, "record")
                     .returns(wrappedTypeName)
-                    .addStatement("return new $1T($2L)", allFieldsPresentClass, commaSeparate(arguments))
+                    .addStatement("return new $1T($2L)", allFieldsPresentClass, CodeBlock.join(arguments, ", "))
                     .build();
 
             recordInterfaceBuilder.addMethod(fromRecordMethod);
@@ -314,7 +314,7 @@ public class RecordValidator implements Validator {
                     .addParameter(wrappedTypeName, "data")
                     .returns(originalTypeName)
                     .beginControlFlow("if (data instanceof $T castData)", allFieldsPresentClass)
-                    .addStatement("return new $1T($2L)", originalTypeName, commaSeparate(arguments))
+                    .addStatement("return new $1T($2L)", originalTypeName, CodeBlock.join(arguments, ", "))
                     .endControlFlow()
                     .addStatement("throw new $1T(\"Should not have tried converting this class to a record, we don't have all the information required\")", RuntimeException.class)
                     .build();
@@ -326,15 +326,6 @@ public class RecordValidator implements Validator {
         for (var types : permutations) {
             ClassName concreteType = fieldToInnerClass.get(types);
 
-            MethodSpec canMergeMethod = MethodSpec
-                    .methodBuilder("canMerge")
-                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                    .addParameter(concreteType, "data")
-                    .returns(boolean.class)
-                    .build();
-
-            recordInterfaceBuilder.addMethod(canMergeMethod);
-
             MethodSpec mergeMethod = MethodSpec
                     .methodBuilder("merge")
                     .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
@@ -345,14 +336,31 @@ public class RecordValidator implements Validator {
             recordInterfaceBuilder.addMethod(mergeMethod);
         }
 
-        // We also need ones for the data interface
         {
             MethodSpec.Builder canMergeMethodBuilder = MethodSpec
                     .methodBuilder("canMerge")
                     .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                     .addParameter(wrappedTypeName, "data")
-                    .returns(boolean.class);
+                    .returns(boolean.class)
+                    .addCode(CodeBlock.join(
+                            fields.stream()
+                                    .map(f -> CodeBlock.of("var this_$1L = get$2L(this);\nvar data_$1L = get$2L(data);", f.name(), Util.ucfirst(f.name())))
+                                    .toList(),
+                            "\n"
+                    ))
+                    .addStatement("return $1L",
+                            CodeBlock.join(
+                                    fields.stream()
+                                            .map(f -> CodeBlock.of("(this_$1L == null || data_$1L == null || this_$1L.equals(data_$1L))", f.name()))
+                                            .toList(),
+                                    " && ")
+                    );
 
+            recordInterfaceBuilder.addMethod(canMergeMethodBuilder.build());
+        }
+
+        // We also need ones for the data interface
+        {
             MethodSpec.Builder mergeMethodBuilder = MethodSpec
                     .methodBuilder("merge")
                     .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
@@ -360,14 +368,10 @@ public class RecordValidator implements Validator {
                     .returns(wrappedTypeName);
 
             for (var innerClass : innerClassToField.keySet()) {
-                canMergeMethodBuilder.addStatement("if (data instanceof $T s) return canMerge(s)", innerClass);
                 mergeMethodBuilder.addStatement("if (data instanceof $T s) return merge(s)", innerClass);
             }
 
-            canMergeMethodBuilder.addStatement("return false");
             mergeMethodBuilder.addStatement("return null");
-
-            recordInterfaceBuilder.addMethod(canMergeMethodBuilder.build());
 
             recordInterfaceBuilder.addMethod(mergeMethodBuilder.build());
         }
@@ -477,29 +481,29 @@ public class RecordValidator implements Validator {
                     .sorted(Comparator.comparing(e -> e.getKey().simpleName()))
                     .forEach(entry -> {
                         var otherInnerClass = entry.getKey();
-                        var commonFields = new HashSet<>(entry.getValue());
-                        commonFields.retainAll(types);
-
-                        MethodSpec.Builder canMergeMethodBuilder = MethodSpec
-                                .methodBuilder("canMerge")
-                                .addModifiers(Modifier.PUBLIC)
-                                .addParameter(otherInnerClass, "data")
-                                .returns(boolean.class);
-
-                        if (commonFields.isEmpty()) {
-                            canMergeMethodBuilder.addStatement("return true");
-                        } else {
-                            CodeBlock code = CodeBlock.join(
-                                    commonFields
-                                            .stream()
-                                            .map(f -> CodeBlock.of("this.$1L.equals(data.$1L)", f.name()))
-                                            .toList(),
-                                    " && "
-                            );
-                            canMergeMethodBuilder.addStatement("return $1L", code);
-                        }
-
-                        innerClass.addMethod(canMergeMethodBuilder.build());
+//                        var commonFields = new HashSet<>(entry.getValue());
+//                        commonFields.retainAll(types);
+//
+//                        MethodSpec.Builder canMergeMethodBuilder = MethodSpec
+//                                .methodBuilder("canMerge")
+//                                .addModifiers(Modifier.PUBLIC)
+//                                .addParameter(otherInnerClass, "data")
+//                                .returns(boolean.class);
+//
+//                        if (commonFields.isEmpty()) {
+//                            canMergeMethodBuilder.addStatement("return true");
+//                        } else {
+//                            CodeBlock code = CodeBlock.join(
+//                                    commonFields
+//                                            .stream()
+//                                            .map(f -> CodeBlock.of("this.$1L.equals(data.$1L)", f.name()))
+//                                            .toList(),
+//                                    " && "
+//                            );
+//                            canMergeMethodBuilder.addStatement("return $1L", code);
+//                        }
+//
+//                        innerClass.addMethod(canMergeMethodBuilder.build());
 
                         MethodSpec.Builder mergeMethodBuilder = MethodSpec
                                 .methodBuilder("merge")
@@ -572,20 +576,6 @@ public class RecordValidator implements Validator {
                 .build();
     }
 
-    private static CodeBlock commaSeparate(List<CodeBlock> blocks) {
-        CodeBlock.Builder result = CodeBlock.builder();
-        for (int i = 0; i < blocks.size(); i++) {
-            var block = blocks.get(i);
-            result.add(block);
-
-            if (i + 1 < blocks.size()) {
-                result.add(", ");
-            }
-        }
-
-        return result.build();
-    }
-
     public class DataEmitter {
         private final List<Field<ClassName>> fields;
         private final ClassName dataClass;
@@ -647,7 +637,7 @@ public class RecordValidator implements Validator {
                     })
                     .toList();
 
-            code.add(commaSeparate(fieldCodes));
+            code.add(CodeBlock.join(fieldCodes, ", "));
 
             if (emitConstructor) {
                 code.add(")");
