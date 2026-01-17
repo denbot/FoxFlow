@@ -357,9 +357,9 @@ public class RecordValidator implements Validator {
                             "\n"
                     ))
                     .addCode("""
-                            \n
-                            return $1L$2L;
-                            """,
+                                    \n
+                                    return $1L$2L;
+                                    """,
                             dataEmitter(topLevelDataSubclass)
                                     .withConstructor()
                                     .withTransform("this_%1$s == null ? data_%1$s : this_%1$s"::formatted)
@@ -372,11 +372,11 @@ public class RecordValidator implements Validator {
 
         // removeNulls for the required data types
         Map<ClassName, List<ClassName>> removeNullsMap = new HashMap<>();
-        if(needsRemoveNulls) {
+        if (needsRemoveNulls) {
             Queue<Pair<ClassName, Integer>> queue = new LinkedList<>();
             queue.add(new Pair<>(topLevelDataSubclass, -1));
 
-            while(!queue.isEmpty()) {
+            while (!queue.isEmpty()) {
                 var pair = queue.poll();
                 var subDataClass = pair.getFirst();
                 var lastRemovedIndex = pair.getSecond();
@@ -393,12 +393,82 @@ public class RecordValidator implements Validator {
                     var childSubData = fieldToInnerClass.get(subDataFields);
                     children.add(childSubData);
 
-                    if(subDataFields.size() > 1 && toRemoveIndex + 1 < fields.size()) {
+                    if (subDataFields.size() > 1 && toRemoveIndex + 1 < fields.size()) {
                         queue.add(new Pair<>(childSubData, toRemoveIndex));
                     }
                 }
 
                 removeNullsMap.put(subDataClass, children);
+            }
+        }
+
+        // attemptTransitionTo
+        {
+            List<CodeBlock> attemptTransitions = new ArrayList<>();
+            List<CodeBlock> compareTransitions = new ArrayList<>();
+
+            for (var field : fields) {
+                // Add the type parameter to the constructor
+                String fieldName = field.name();
+                var dataTypeName = field.value();
+                if (nestedRecords.containsKey(dataTypeName)) {
+                    dataTypeName = nestedRecords.get(dataTypeName);
+                } else if (nestedInterfaces.containsKey(dataTypeName)) {
+                    dataTypeName = nestedInterfaces.get(dataTypeName);
+                }
+
+                var checkStateTransition = supportsStateTransition.get(field.value());
+                if (checkStateTransition) {
+                    compareTransitions.add(CodeBlock.of(
+                            """
+                                    $2T this$1LField = get$1L(this);
+                                    $2T other$1LField = get$1L(data);
+                                    if(this$1LField != null && other$1LField != null && !this$1LField.canTransitionState(other$1LField)) return false;
+                                    """,
+                            Util.ucfirst(fieldName),
+                            dataTypeName
+                    ));
+
+                    attemptTransitions.add(CodeBlock.of(
+                            """
+                                    $2T this$1LField = get$1L(this);
+                                    $2T other$1LField = get$1L(data);
+                                    if(this$1LField != null && other$1LField != null) this$1LField.attemptTransitionTo(other$1LField);
+                                    """,
+                            Util.ucfirst(fieldName),
+                            dataTypeName
+                    ));
+                }
+            }
+
+            if (supportsStateTransition()) {
+                MethodSpec canTransitionState = MethodSpec
+                        .methodBuilder("canTransitionState")
+                        .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                        .returns(boolean.class)
+                        .addParameter(wrappedTypeName, "data")
+                        .addCode(compareTransitions.stream().collect(CodeBlock.joining("\n")))
+                        .addStatement("return true")
+                        .build();
+
+                recordInterfaceBuilder.addMethod(canTransitionState);
+            }
+
+            // No point in even adding the method if it's just going to be an empty try statement
+            if (!attemptTransitions.isEmpty()) {
+                // attemptTransitionTo override
+                MethodSpec attemptTransitionTo = MethodSpec
+                        .methodBuilder("attemptTransitionTo")
+                        .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                        .addParameter(wrappedTypeName, "data")
+                        .beginControlFlow("try")
+                        .addCode(attemptTransitions.stream().collect(CodeBlock.joining("\n")))
+                        .nextControlFlow("catch ($T ex)", InvalidStateTransition.class)
+                        .addStatement("throw new $T(this, data, ex)", InvalidStateTransition.class)
+                        .endControlFlow()
+                        .build();
+
+                recordInterfaceBuilder.addMethod(attemptTransitionTo);
             }
         }
 
@@ -426,9 +496,6 @@ public class RecordValidator implements Validator {
         MethodSpec.Builder recordConstructor = MethodSpec
                 .constructorBuilder();
 
-        List<CodeBlock> attemptTransitions = new ArrayList<>();
-        List<CodeBlock> compareTransitions = new ArrayList<>();
-
         var types = innerClassToField.get(nestedName);
 
         for (var field : types) {
@@ -442,67 +509,6 @@ public class RecordValidator implements Validator {
             }
 
             recordConstructor.addParameter(dataTypeName, fieldName);
-
-            var checkStateTransition = supportsStateTransition.get(field.value());
-            if (checkStateTransition) {
-                compareTransitions.add(CodeBlock.of(
-                        """
-                                $3T $1LField = $2L(data);
-                                if($1LField != null && !this.$1L.canTransitionState($1LField)) return false;
-                                """,
-                        fieldName,
-                        "get" + Util.ucfirst(fieldName),
-                        dataTypeName
-                ));
-
-                attemptTransitions.add(CodeBlock.of(
-                        """
-                                $3T $1LField = $2L(data);
-                                if($1LField != null) this.$1L.attemptTransitionTo($1LField);
-                                """,
-                        fieldName,
-                        "get" + Util.ucfirst(fieldName),
-                        dataTypeName
-                ));
-            }
-        }
-
-        TypeSpec.Builder innerClass = TypeSpec
-                .recordBuilder(nestedName)
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                .recordConstructor(recordConstructor.build())
-                .addSuperinterface(wrappedTypeName);
-
-        if (supportsStateTransition()) {
-            MethodSpec canTransitionState = MethodSpec
-                    .methodBuilder("canTransitionState")
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC)
-                    .returns(boolean.class)
-                    .addParameter(wrappedTypeName, "data")
-                    .addCode(compareTransitions.stream().collect(CodeBlock.joining("\n")))
-                    .addStatement("return true")
-                    .build();
-
-            innerClass.addMethod(canTransitionState);
-        }
-
-        // No point in even adding the method if it's just going to be an empty try statement
-        if (!attemptTransitions.isEmpty()) {
-            // attemptTransitionTo override
-            MethodSpec attemptTransitionTo = MethodSpec
-                    .methodBuilder("attemptTransitionTo")
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(wrappedTypeName, "data")
-                    .beginControlFlow("try")
-                    .addCode(attemptTransitions.stream().collect(CodeBlock.joining("\n")))
-                    .nextControlFlow("catch ($T ex)", InvalidStateTransition.class)
-                    .addStatement("throw new $T(this, data, ex)", InvalidStateTransition.class)
-                    .endControlFlow()
-                    .build();
-
-            innerClass.addMethod(attemptTransitionTo);
         }
 
         MethodSpec numElements = MethodSpec
@@ -512,9 +518,14 @@ public class RecordValidator implements Validator {
                 .addStatement("return $1L", types.size())
                 .build();
 
-        innerClass.addMethod(numElements);
+        TypeSpec.Builder innerClass = TypeSpec
+                .recordBuilder(nestedName)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .recordConstructor(recordConstructor.build())
+                .addSuperinterface(wrappedTypeName)
+                .addMethod(numElements);
 
-        if(removeNulls != null) {
+        if (removeNulls != null) {
             MethodSpec.Builder removeNullsMethod = MethodSpec
                     .methodBuilder("removeNulls")
                     .returns(wrappedTypeName);
