@@ -105,9 +105,7 @@ public class RecordValidator implements Validator {
                             .toList()
             );
 
-            interfaceValidators.forEach(iv -> {
-                nestedInterfaces.put(iv.originalTypeName(), iv.wrappedClassName());
-            });
+            interfaceValidators.forEach(iv -> nestedInterfaces.put(iv.originalTypeName(), iv.wrappedClassName()));
         }
 
         // Enum default values
@@ -385,6 +383,7 @@ public class RecordValidator implements Validator {
 
                 for (int toRemoveIndex = lastRemovedIndex + 1; toRemoveIndex < fields.size(); toRemoveIndex++) {
                     List<Field<ClassName>> fieldsWithRemovedElement = new ArrayList<>(fields);
+                    //noinspection SuspiciousListRemoveInLoop
                     fieldsWithRemovedElement.remove(toRemoveIndex);
 
                     List<Field<ClassName>> subDataFields = new ArrayList<>(innerClassToField.get(subDataClass));
@@ -475,7 +474,7 @@ public class RecordValidator implements Validator {
         // Inner classes that hold subsets of our data for easy passing around and manipulation
         for (var types : permutations) {
             ClassName nestedName = fieldToInnerClass.get(types);
-            recordInterfaceBuilder.addType(createInnerClass(nestedName, removeNullsMap.get(nestedName)));
+            recordInterfaceBuilder.addType(createInnerClass(nestedName, removeNullsMap));
         }
 
         MethodSpec numElements = MethodSpec
@@ -492,7 +491,7 @@ public class RecordValidator implements Validator {
         return recordInterfaceBuilder.build();
     }
 
-    private TypeSpec createInnerClass(ClassName nestedName, List<ClassName> removeNulls) {
+    private TypeSpec createInnerClass(ClassName nestedName, Map<ClassName, List<ClassName>> removeNullsMap) {
         MethodSpec.Builder recordConstructor = MethodSpec
                 .constructorBuilder();
 
@@ -525,10 +524,12 @@ public class RecordValidator implements Validator {
                 .addSuperinterface(wrappedTypeName)
                 .addMethod(numElements);
 
-        if (removeNulls != null) {
+        if (removeNullsMap.containsKey(nestedName)) {
             MethodSpec.Builder removeNullsMethod = MethodSpec
                     .methodBuilder("removeNulls")
                     .returns(wrappedTypeName);
+
+            var removeNulls = removeNullsMap.get(nestedName);
 
             for (ClassName childClass : removeNulls) {
                 var fieldDifference = new ArrayList<>(innerClassToField.get(nestedName));
@@ -536,11 +537,13 @@ public class RecordValidator implements Validator {
 
                 // Field difference only has one element now by definition of the parent/child relationship
                 var field = fieldDifference.get(0);
+                boolean needsRemoveNulls = removeNullsMap.containsKey(childClass);
 
                 removeNullsMethod.addStatement(
-                        "if(this.$1L == null) return $2L",
+                        "if(this.$1L == null) return $2L$3L",
                         field.name(),
-                        dataEmitter(childClass).withConstructor().emit()
+                        dataEmitter(childClass).withConstructor().emit(),
+                        needsRemoveNulls ? ".removeNulls()" : ""
                 );
             }
 
