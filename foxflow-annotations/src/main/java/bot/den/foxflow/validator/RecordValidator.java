@@ -106,9 +106,7 @@ public class RecordValidator implements Validator {
                             .toList()
             );
 
-            interfaceValidators.forEach(iv -> {
-                nestedInterfaces.put(iv.originalTypeName(), iv.wrappedClassName());
-            });
+            interfaceValidators.forEach(iv -> nestedInterfaces.put(iv.originalTypeName(), iv.wrappedClassName()));
         }
 
         // Enum default values
@@ -218,11 +216,6 @@ public class RecordValidator implements Validator {
             recordInterfaceBuilder.addSuperinterface(limitsStateTransitions);
         }
 
-        // Inner classes that hold subsets of our data for easy passing around and manipulation
-        for (var types : permutations) {
-            recordInterfaceBuilder.addType(createInnerClass(types));
-        }
-
         // Next up, we need a helper method for each of the original record fields that help us with comparing if states can transition
         {
             for (var field : fields) {
@@ -284,7 +277,7 @@ public class RecordValidator implements Validator {
                     .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                     .addParameter(originalTypeName, "record")
                     .returns(wrappedTypeName)
-                    .addStatement("return new $1T($2L)", allFieldsPresentClass, commaSeparate(arguments))
+                    .addStatement("return new $1T($2L)", allFieldsPresentClass, CodeBlock.join(arguments, ", "))
                     .build();
 
             recordInterfaceBuilder.addMethod(fromRecordMethod);
@@ -316,7 +309,7 @@ public class RecordValidator implements Validator {
                     .addParameter(wrappedTypeName, "data")
                     .returns(originalTypeName)
                     .beginControlFlow("if (data instanceof $T castData)", allFieldsPresentClass)
-                    .addStatement("return new $1T($2L)", originalTypeName, commaSeparate(arguments))
+                    .addStatement("return new $1T($2L)", originalTypeName, CodeBlock.join(arguments, ", "))
                     .endControlFlow()
                     .addStatement("throw new $1T(\"Should not have tried converting this class to a record, we don't have all the information required\")", RuntimeException.class)
                     .build();
@@ -324,54 +317,166 @@ public class RecordValidator implements Validator {
             recordInterfaceBuilder.addMethod(toRecordMethod);
         }
 
-        // Make merge methods for specific concrete types
-        for (var types : permutations) {
-            ClassName concreteType = fieldToInnerClass.get(types);
-
-            MethodSpec canMergeMethod = MethodSpec
-                    .methodBuilder("canMerge")
-                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                    .addParameter(concreteType, "data")
-                    .returns(boolean.class)
-                    .build();
-
-            recordInterfaceBuilder.addMethod(canMergeMethod);
-
-            MethodSpec mergeMethod = MethodSpec
-                    .methodBuilder("merge")
-                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
-                    .addParameter(concreteType, "data")
-                    .returns(wrappedTypeName)
-                    .build();
-
-            recordInterfaceBuilder.addMethod(mergeMethod);
-        }
-
-        // We also need ones for the data interface
+        // canMerge any two data interfaces
         {
             MethodSpec.Builder canMergeMethodBuilder = MethodSpec
                     .methodBuilder("canMerge")
                     .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                     .addParameter(wrappedTypeName, "data")
-                    .returns(boolean.class);
+                    .returns(boolean.class)
+                    .addCode(CodeBlock.join(
+                            fields.stream()
+                                    .map(f -> CodeBlock.of("var this_$1L = get$2L(this);\nvar data_$1L = get$2L(data);", f.name(), Util.ucfirst(f.name())))
+                                    .toList(),
+                            "\n"
+                    ))
+                    .addStatement("\nreturn $1L",
+                            CodeBlock.join(
+                                    fields.stream()
+                                            .map(f -> CodeBlock.of("(this_$1L == null || data_$1L == null || this_$1L.equals(data_$1L))", f.name()))
+                                            .toList(),
+                                    " && \n")
+                    );
 
-            MethodSpec.Builder mergeMethodBuilder = MethodSpec
+            recordInterfaceBuilder.addMethod(canMergeMethodBuilder.build());
+        }
+
+        // Merge any two data interfaces
+        var topLevelDataSubclass = fieldToInnerClass.get(fields);
+        boolean needsRemoveNulls = innerClassToField.get(topLevelDataSubclass).size() > 1;
+        {
+            MethodSpec mergeMethodBuilder = MethodSpec
                     .methodBuilder("merge")
                     .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                     .addParameter(wrappedTypeName, "data")
-                    .returns(wrappedTypeName);
+                    .returns(wrappedTypeName)
+                    .addCode(CodeBlock.join(
+                            fields.stream()
+                                    .map(f -> CodeBlock.of("var this_$1L = get$2L(this);\nvar data_$1L = get$2L(data);", f.name(), Util.ucfirst(f.name())))
+                                    .toList(),
+                            "\n"
+                    ))
+                    .addCode("""
+                                    \n
+                                    return $1L$2L;
+                                    """,
+                            dataEmitter(topLevelDataSubclass)
+                                    .withConstructor()
+                                    .withTransform("this_%1$s == null ? data_%1$s : this_%1$s"::formatted)
+                                    .emit(),
+                            needsRemoveNulls ? ".removeNulls()" : ""
+                    ).build();
 
-            for (var innerClass : innerClassToField.keySet()) {
-                canMergeMethodBuilder.addStatement("if (data instanceof $T s) return canMerge(s)", innerClass);
-                mergeMethodBuilder.addStatement("if (data instanceof $T s) return merge(s)", innerClass);
+            recordInterfaceBuilder.addMethod(mergeMethodBuilder);
+        }
+
+        // removeNulls for the required data types
+        Map<ClassName, List<ClassName>> removeNullsMap = new HashMap<>();
+        if (needsRemoveNulls) {
+            Queue<Pair<ClassName, Integer>> queue = new LinkedList<>();
+            queue.add(new Pair<>(topLevelDataSubclass, -1));
+
+            while (!queue.isEmpty()) {
+                var pair = queue.poll();
+                var subDataClass = pair.getFirst();
+                var lastRemovedIndex = pair.getSecond();
+
+                List<ClassName> children = new ArrayList<>();
+
+                for (int toRemoveIndex = lastRemovedIndex + 1; toRemoveIndex < fields.size(); toRemoveIndex++) {
+                    List<Field<ClassName>> fieldsWithRemovedElement = new ArrayList<>(fields);
+                    //noinspection SuspiciousListRemoveInLoop
+                    fieldsWithRemovedElement.remove(toRemoveIndex);
+
+                    List<Field<ClassName>> subDataFields = new ArrayList<>(innerClassToField.get(subDataClass));
+                    subDataFields.retainAll(fieldsWithRemovedElement);
+
+                    var childSubData = fieldToInnerClass.get(subDataFields);
+                    children.add(childSubData);
+
+                    if (subDataFields.size() > 1 && toRemoveIndex + 1 < fields.size()) {
+                        queue.add(new Pair<>(childSubData, toRemoveIndex));
+                    }
+                }
+
+                removeNullsMap.put(subDataClass, children);
+            }
+        }
+
+        // attemptTransitionTo
+        {
+            List<CodeBlock> attemptTransitions = new ArrayList<>();
+            List<CodeBlock> compareTransitions = new ArrayList<>();
+
+            for (var field : fields) {
+                // Add the type parameter to the constructor
+                String fieldName = field.name();
+                var dataTypeName = field.value();
+                if (nestedRecords.containsKey(dataTypeName)) {
+                    dataTypeName = nestedRecords.get(dataTypeName);
+                } else if (nestedInterfaces.containsKey(dataTypeName)) {
+                    dataTypeName = nestedInterfaces.get(dataTypeName);
+                }
+
+                var checkStateTransition = supportsStateTransition.get(field.value());
+                if (checkStateTransition) {
+                    compareTransitions.add(CodeBlock.of(
+                            """
+                                    $2T this$1LField = get$1L(this);
+                                    $2T other$1LField = get$1L(data);
+                                    if(this$1LField != null && other$1LField != null && !this$1LField.canTransitionState(other$1LField)) return false;
+                                    """,
+                            Util.ucfirst(fieldName),
+                            dataTypeName
+                    ));
+
+                    attemptTransitions.add(CodeBlock.of(
+                            """
+                                    $2T this$1LField = get$1L(this);
+                                    $2T other$1LField = get$1L(data);
+                                    if(this$1LField != null && other$1LField != null) this$1LField.attemptTransitionTo(other$1LField);
+                                    """,
+                            Util.ucfirst(fieldName),
+                            dataTypeName
+                    ));
+                }
             }
 
-            canMergeMethodBuilder.addStatement("return false");
-            mergeMethodBuilder.addStatement("return null");
+            if (supportsStateTransition()) {
+                MethodSpec canTransitionState = MethodSpec
+                        .methodBuilder("canTransitionState")
+                        .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                        .returns(boolean.class)
+                        .addParameter(wrappedTypeName, "data")
+                        .addCode(compareTransitions.stream().collect(CodeBlock.joining("\n")))
+                        .addStatement("return true")
+                        .build();
 
-            recordInterfaceBuilder.addMethod(canMergeMethodBuilder.build());
+                recordInterfaceBuilder.addMethod(canTransitionState);
+            }
 
-            recordInterfaceBuilder.addMethod(mergeMethodBuilder.build());
+            // No point in even adding the method if it's just going to be an empty try statement
+            if (!attemptTransitions.isEmpty()) {
+                // attemptTransitionTo override
+                MethodSpec attemptTransitionTo = MethodSpec
+                        .methodBuilder("attemptTransitionTo")
+                        .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
+                        .addParameter(wrappedTypeName, "data")
+                        .beginControlFlow("try")
+                        .addCode(attemptTransitions.stream().collect(CodeBlock.joining("\n")))
+                        .nextControlFlow("catch ($T ex)", InvalidStateTransition.class)
+                        .addStatement("throw new $T(this, data, ex)", InvalidStateTransition.class)
+                        .endControlFlow()
+                        .build();
+
+                recordInterfaceBuilder.addMethod(attemptTransitionTo);
+            }
+        }
+
+        // Inner classes that hold subsets of our data for easy passing around and manipulation
+        for (var types : permutations) {
+            ClassName nestedName = fieldToInnerClass.get(types);
+            recordInterfaceBuilder.addType(createInnerClass(nestedName, removeNullsMap));
         }
 
         MethodSpec numElements = MethodSpec
@@ -388,12 +493,11 @@ public class RecordValidator implements Validator {
         return recordInterfaceBuilder.build();
     }
 
-    private TypeSpec createInnerClass(List<Field<ClassName>> types) {
+    private TypeSpec createInnerClass(ClassName nestedName, Map<ClassName, List<ClassName>> removeNullsMap) {
         MethodSpec.Builder recordConstructor = MethodSpec
                 .constructorBuilder();
 
-        List<CodeBlock> attemptTransitions = new ArrayList<>();
-        List<CodeBlock> compareTransitions = new ArrayList<>();
+        var types = innerClassToField.get(nestedName);
 
         for (var field : types) {
             // Add the type parameter to the constructor
@@ -406,132 +510,6 @@ public class RecordValidator implements Validator {
             }
 
             recordConstructor.addParameter(dataTypeName, fieldName);
-
-            var checkStateTransition = supportsStateTransition.get(field.value());
-            if (checkStateTransition) {
-                compareTransitions.add(CodeBlock.of(
-                        """
-                                $3T $1LField = $2L(data);
-                                if($1LField != null && !this.$1L.canTransitionState($1LField)) return false;
-                                """,
-                        fieldName,
-                        "get" + Util.ucfirst(fieldName),
-                        dataTypeName
-                ));
-
-                attemptTransitions.add(CodeBlock.of(
-                        """
-                                $3T $1LField = $2L(data);
-                                if($1LField != null) this.$1L.attemptTransitionTo($1LField);
-                                """,
-                        fieldName,
-                        "get" + Util.ucfirst(fieldName),
-                        dataTypeName
-                ));
-            }
-        }
-
-        ClassName nestedName = fieldToInnerClass.get(types);
-
-        TypeSpec.Builder innerClass = TypeSpec
-                .recordBuilder(nestedName)
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                .recordConstructor(recordConstructor.build())
-                .addSuperinterface(wrappedTypeName);
-
-        if (supportsStateTransition()) {
-            MethodSpec canTransitionState = MethodSpec
-                    .methodBuilder("canTransitionState")
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC)
-                    .returns(boolean.class)
-                    .addParameter(wrappedTypeName, "data")
-                    .addCode(compareTransitions.stream().collect(CodeBlock.joining("\n")))
-                    .addStatement("return true")
-                    .build();
-
-            innerClass.addMethod(canTransitionState);
-        }
-
-        // No point in even adding the method if it's just going to be an empty try statement
-        if (!attemptTransitions.isEmpty()) {
-            // attemptTransitionTo override
-            MethodSpec attemptTransitionTo = MethodSpec
-                    .methodBuilder("attemptTransitionTo")
-                    .addAnnotation(Override.class)
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(wrappedTypeName, "data")
-                    .beginControlFlow("try")
-                    .addCode(attemptTransitions.stream().collect(CodeBlock.joining("\n")))
-                    .nextControlFlow("catch ($T ex)", InvalidStateTransition.class)
-                    .addStatement("throw new $T(this, data, ex)", InvalidStateTransition.class)
-                    .endControlFlow()
-                    .build();
-
-            innerClass.addMethod(attemptTransitionTo);
-        }
-
-        // Make merge methods for specific concrete types
-        {
-            innerClassToField
-                    .entrySet()
-                    .stream()
-                    .sorted(Comparator.comparing(e -> e.getKey().simpleName()))
-                    .forEach(entry -> {
-                        var otherInnerClass = entry.getKey();
-                        var commonFields = new HashSet<>(entry.getValue());
-                        commonFields.retainAll(types);
-
-                        MethodSpec.Builder canMergeMethodBuilder = MethodSpec
-                                .methodBuilder("canMerge")
-                                .addModifiers(Modifier.PUBLIC)
-                                .addParameter(otherInnerClass, "data")
-                                .returns(boolean.class);
-
-                        if (commonFields.isEmpty()) {
-                            canMergeMethodBuilder.addStatement("return true");
-                        } else {
-                            CodeBlock code = CodeBlock.join(
-                                    commonFields
-                                            .stream()
-                                            .map(f -> CodeBlock.of("this.$1L.equals(data.$1L)", f.name()))
-                                            .toList(),
-                                    " && "
-                            );
-                            canMergeMethodBuilder.addStatement("return $1L", code);
-                        }
-
-                        innerClass.addMethod(canMergeMethodBuilder.build());
-
-                        MethodSpec.Builder mergeMethodBuilder = MethodSpec
-                                .methodBuilder("merge")
-                                .addModifiers(Modifier.PUBLIC)
-                                .addParameter(otherInnerClass, "data")
-                                .returns(wrappedTypeName);
-
-                        var allFields = new HashSet<>(entry.getValue());
-                        allFields.addAll(types);
-                        // We have to filter the fieldTypes to make sure we get the list of common fields in order
-                        var fieldsCorrectOrder = fields.stream().filter(allFields::contains).toList();
-                        ClassName commonInnerClass = fieldToInnerClass.get(fieldsCorrectOrder);
-
-                        CodeBlock mergeCode = CodeBlock.join(
-                                fieldsCorrectOrder
-                                        .stream()
-                                        .map(f -> entry.getValue().contains(f) ?
-                                                CodeBlock.of("data.$1L", f.name()) :
-                                                CodeBlock.of("this.$1L", f.name()))
-                                        .toList(),
-                                ",\n"
-                        );
-                        mergeMethodBuilder.addCode("""
-                                return new $1T(
-                                    $2L
-                                );
-                                """, commonInnerClass, mergeCode);
-
-                        innerClass.addMethod(mergeMethodBuilder.build());
-                    });
         }
 
         MethodSpec numElements = MethodSpec
@@ -541,7 +519,40 @@ public class RecordValidator implements Validator {
                 .addStatement("return $1L", types.size())
                 .build();
 
-        innerClass.addMethod(numElements);
+        TypeSpec.Builder innerClass = TypeSpec
+                .recordBuilder(nestedName)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .recordConstructor(recordConstructor.build())
+                .addSuperinterface(wrappedTypeName)
+                .addMethod(numElements);
+
+        if (removeNullsMap.containsKey(nestedName)) {
+            MethodSpec.Builder removeNullsMethod = MethodSpec
+                    .methodBuilder("removeNulls")
+                    .returns(wrappedTypeName);
+
+            var removeNulls = removeNullsMap.get(nestedName);
+
+            for (ClassName childClass : removeNulls) {
+                var fieldDifference = new ArrayList<>(innerClassToField.get(nestedName));
+                fieldDifference.removeAll(innerClassToField.get(childClass));
+
+                // Field difference only has one element now by definition of the parent/child relationship
+                var field = fieldDifference.get(0);
+                boolean needsRemoveNulls = removeNullsMap.containsKey(childClass);
+
+                removeNullsMethod.addStatement(
+                        "if(this.$1L == null) return $2L$3L",
+                        field.name(),
+                        dataEmitter(childClass).withConstructor().emit(),
+                        needsRemoveNulls ? ".removeNulls()" : ""
+                );
+            }
+
+            removeNullsMethod.addStatement("return this");
+
+            innerClass.addMethod(removeNullsMethod.build());
+        }
 
         return innerClass.build();
     }
@@ -572,20 +583,6 @@ public class RecordValidator implements Validator {
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .recordConstructor(dataConstructor)
                 .build();
-    }
-
-    private static CodeBlock commaSeparate(List<CodeBlock> blocks) {
-        CodeBlock.Builder result = CodeBlock.builder();
-        for (int i = 0; i < blocks.size(); i++) {
-            var block = blocks.get(i);
-            result.add(block);
-
-            if (i + 1 < blocks.size()) {
-                result.add(", ");
-            }
-        }
-
-        return result.build();
     }
 
     public class DataEmitter {
@@ -649,7 +646,7 @@ public class RecordValidator implements Validator {
                     })
                     .toList();
 
-            code.add(commaSeparate(fieldCodes));
+            code.add(CodeBlock.join(fieldCodes, ", "));
 
             if (emitConstructor) {
                 code.add(")");
