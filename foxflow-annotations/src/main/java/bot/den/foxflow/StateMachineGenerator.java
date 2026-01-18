@@ -64,9 +64,10 @@ public class StateMachineGenerator {
         String simpleStateName = annotatedClassName.simpleName();
         stateMachineClassName = annotatedClassName.peerClass(simpleStateName + "StateMachine");
         stateManagerClassName = stateMachineClassName.nestedClass(simpleStateName + "StateManager");
-        stateFromClassName = annotatedClassName.peerClass(simpleStateName + "From");
-        stateLimitedToClassName = annotatedClassName.peerClass(simpleStateName + "LimitedTo");
-        stateToClassName = annotatedClassName.peerClass(simpleStateName + "To");
+        String obfuscatedPackageName = Util.getObfuscatedPackageName(annotatedClassName);
+        stateFromClassName = ClassName.get(obfuscatedPackageName, "From");
+        stateLimitedToClassName = ClassName.get(obfuscatedPackageName, "LimitedTo");
+        stateToClassName = ClassName.get(obfuscatedPackageName, "To");
 
         robotStateName = ClassName.get(RobotState.class);
     }
@@ -74,7 +75,7 @@ public class StateMachineGenerator {
     public void generate() {
         if (validator instanceof RecordValidator recordValidator) {
             for (var type : recordValidator.typesToWrite) {
-                this.environment.writeType(type);
+                this.environment.writeType(type.getFirst(), type.getSecond());
             }
         }
 
@@ -254,6 +255,7 @@ public class StateMachineGenerator {
 
         TypeSpec.Builder managerType = TypeSpec
                 .classBuilder(stateManagerClassName)
+                .addModifiers(Modifier.PUBLIC)
                 .addMethod(whenMethod)
                 .addMethod(afterMethod)
                 .addMethod(runMethod)
@@ -358,7 +360,7 @@ public class StateMachineGenerator {
             type.addMethod(transitionToMethod);
         }
 
-        this.environment.writeType(type.build());
+        this.environment.writeType(stateLimitedToClassName.packageName(), type.build());
     }
 
     private void generateToClass() {
@@ -415,7 +417,7 @@ public class StateMachineGenerator {
                 .addMethod(afterTimeMethod)
                 .build();
 
-        this.environment.writeType(type);
+        this.environment.writeType(stateToClassName.packageName(), type);
     }
 
     private void generateFromClass() {
@@ -544,7 +546,7 @@ public class StateMachineGenerator {
                 .addMethod(triggerEventLoopMethod)
                 .build();
 
-        this.environment.writeType(type);
+        this.environment.writeType(stateFromClassName.packageName(), type);
     }
 
     private void generateStateMachineClass(TypeSpec internalStateManager) {
@@ -1504,7 +1506,7 @@ public class StateMachineGenerator {
 
         typeBuilder.addType(internalStateManager);
 
-        this.environment.writeType(typeBuilder.build());
+        this.environment.writeType(stateMachineClassName.packageName(), typeBuilder.build());
     }
 
     private Builder<MethodSpec> transitionToMethods(TransitionToCode transitionToCode) {

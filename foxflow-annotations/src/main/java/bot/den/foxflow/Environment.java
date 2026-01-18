@@ -29,8 +29,7 @@ public record Environment(
         );
     }
 
-    public void writeType(TypeSpec type) {
-        String packageName = getPackageName(element);
+    public void writeType(String packageName, TypeSpec type) {
         JavaFile file = JavaFile.builder(packageName, type).indent("    ").build();
         try {
             file.writeTo(processingEnvironment.getFiler());
@@ -42,17 +41,6 @@ public record Environment(
 
     public void error(String error) {
         processingEnvironment.getMessager().printMessage(Diagnostic.Kind.ERROR, error, element);
-    }
-
-    private static String getPackageName(Element e) {
-        while (e != null) {
-            if (e.getKind().equals(ElementKind.PACKAGE)) {
-                return ((PackageElement) e).getQualifiedName().toString();
-            }
-            e = e.getEnclosingElement();
-        }
-
-        return null;
     }
 
     public boolean validlySelfImplements(Class<?> clazz) {
