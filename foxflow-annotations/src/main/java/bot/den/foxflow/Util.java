@@ -20,37 +20,13 @@ public class Util {
     }
 
     /**
-     * It's necessary to eliminate the wrapping classes to simplify things significantly in other areas. The caveat is
-     * that we must also create a unique name. While it's unlikely to cause a conflict under typical circumstances, I
-     * thought it wise to avoid potential clashes, as they are technically possible. (And our unit tests are set up to
-     * fail if we don't)
+     * To hide implementation details on inner classes, we put them all in a sub-package of the original state class.
+     * This ensures that an end-user of our State Machine can only reliably interact with the state machine, but not
+     * with any other specific implementation.
      *
-     * @param startingClassName What name would the caller prefer to go with, if available
-     * @return The name you're going to have to settle for
+     * @param stateClass The record or field that the user is using for state
+     * @return A unique obfuscated package name that the final user should not be able to guess
      */
-    public static ClassName getUniqueClassName(ClassName startingClassName) {
-        var baseClass = startingClassName;
-        while (baseClass.enclosingClassName() != null) {
-            baseClass = baseClass.enclosingClassName();
-        }
-
-        ClassName uniqueDataClassName;
-        String specifier = "";
-        int counter = 0;
-        while (true) {
-            uniqueDataClassName = baseClass.peerClass(startingClassName.simpleName() + specifier);
-
-            if (!uniqueNameCounter.containsKey(uniqueDataClassName)) {
-                // Congrats, your name is unique
-                uniqueNameCounter.put(uniqueDataClassName, counter);
-                return uniqueDataClassName;
-            }
-
-            counter++;
-            specifier = String.valueOf(counter);
-        }
-    }
-
     public static String getObfuscatedPackageName(ClassName stateClass) {
         if (uniquePackage.containsKey(stateClass)) {
             return uniquePackage.get(stateClass);
