@@ -4,6 +4,7 @@ import bot.den.foxflow.*;
 import bot.den.foxflow.builders.Builder;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import com.palantir.javapoet.*;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Time;
 
 import javax.lang.model.element.Element;
@@ -11,7 +12,6 @@ import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.Modifier;
 import javax.lang.model.element.TypeElement;
 import java.util.*;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -20,7 +20,7 @@ public class RecordValidator implements Validator {
     public final Map<List<Field<ClassName>>, ClassName> fieldToInnerClass;
     public final Map<ClassName, List<Field<ClassName>>> innerClassToField;
     public final boolean robotStatePresent;
-    public final List<TypeSpec> typesToWrite = new ArrayList<>();
+    public final List<Pair<String, TypeSpec>> typesToWrite = new ArrayList<>();
 
     // These contain the mapping between the class the user defined and our data class
     public final Map<ClassName, ClassName> nestedRecords = new HashMap<>();
@@ -40,7 +40,8 @@ public class RecordValidator implements Validator {
         var typeElement = environment.element();
         originalTypeName = ClassName.get(typeElement);
 
-        wrappedTypeName = Util.getUniqueClassName(originalTypeName.peerClass(originalTypeName.simpleName() + "Data"));
+        String obfuscatedPackageName = Util.getObfuscatedPackageName(originalTypeName);
+        wrappedTypeName = ClassName.get(obfuscatedPackageName, "Data");
         pairName = wrappedTypeName.nestedClass("Pair");
         timeName = wrappedTypeName.nestedClass("Time");
 
@@ -156,7 +157,7 @@ public class RecordValidator implements Validator {
 
         robotStateName = ClassName.get(RobotState.class);
         robotStatePresent = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
-        typesToWrite.add(createRecordWrapper());
+        typesToWrite.add(new Pair<>(obfuscatedPackageName, createRecordWrapper()));
     }
 
     public DataEmitter dataEmitter(List<Field<ClassName>> fields) {
@@ -210,7 +211,8 @@ public class RecordValidator implements Validator {
          implement that interface.
         */
         TypeSpec.Builder recordInterfaceBuilder = TypeSpec
-                .interfaceBuilder(wrappedTypeName);
+                .interfaceBuilder(wrappedTypeName)
+                .addModifiers(Modifier.PUBLIC);
 
         if (supportsStateTransition()) {
             recordInterfaceBuilder.addSuperinterface(limitsStateTransitions);

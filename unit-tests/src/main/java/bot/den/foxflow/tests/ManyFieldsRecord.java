@@ -13,27 +13,27 @@ public record ManyFieldsRecord(
         D d,
         E e
 ) {
-    enum A {
+    public enum A {
         Forward,
         Backward
     }
 
-    enum B {
+    public enum B {
         Up,
         Down
     }
 
-    enum C {
+    public enum C {
         Left,
         Right
     }
 
-    enum D {
+    public enum D {
         Inside,
         Outside
     }
 
-    enum E {
+    public enum E {
         Inverted,
         Outverted
     }

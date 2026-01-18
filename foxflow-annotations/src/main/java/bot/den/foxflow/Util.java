@@ -4,9 +4,12 @@ import com.palantir.javapoet.ClassName;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
+import java.util.stream.Collectors;
 
 public class Util {
     private static final Map<ClassName, Integer> uniqueNameCounter = new HashMap<>();
+    private static final Map<ClassName, String> uniquePackage = new HashMap<>();
 
     /**
      * @param input The input to adjust
@@ -46,5 +49,30 @@ public class Util {
             counter++;
             specifier = String.valueOf(counter);
         }
+    }
+
+    public static String getObfuscatedPackageName(ClassName stateClass) {
+        if (uniquePackage.containsKey(stateClass)) {
+            return uniquePackage.get(stateClass);
+        }
+
+        var random = new Random();
+
+        while(true) {
+            String randomString = random.ints(3, '0', '9')
+                    .mapToObj(Character::toString)
+                    .collect(Collectors.joining());
+
+            String fullPackageName = stateClass.packageName() + ".ff" + randomString;
+
+            if(uniquePackage.values().stream().noneMatch(v -> v.equals(fullPackageName))) {
+                // No collision, we can use this package name
+                uniquePackage.put(stateClass, fullPackageName);
+                break;
+            }
+        }
+
+
+        return uniquePackage.get(stateClass);
     }
 }

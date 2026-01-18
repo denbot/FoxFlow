@@ -8,7 +8,7 @@ public record BasicRecord(
         BasicEnum basic,
         InnerEnum inner
 ) {
-    enum InnerEnum {
+    public enum InnerEnum {
         STAR, CIRCLE, SQUARE;
     }
 }

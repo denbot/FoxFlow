@@ -6,6 +6,7 @@ import bot.den.foxflow.LimitsTypeTransitions;
 import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.Builder;
 import com.palantir.javapoet.*;
+import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
@@ -13,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class InterfaceValidator implements Validator {
-    public final List<TypeSpec> typesToWrite = new ArrayList<>();
+    public final List<Pair<String, TypeSpec>> typesToWrite = new ArrayList<>();
     private final ClassName originalTypeName;
     private final ClassName wrappedTypeName;
     private final ClassName pairName;
@@ -21,11 +22,12 @@ public class InterfaceValidator implements Validator {
 
     public InterfaceValidator(Environment environment) {
         originalTypeName = ClassName.get(environment.element());
-        wrappedTypeName = Util.getUniqueClassName(originalTypeName.peerClass(originalTypeName.simpleName() + "Data"));
+        String obfuscatedPackageName = Util.getObfuscatedPackageName(originalTypeName);
+        wrappedTypeName = ClassName.get(obfuscatedPackageName, "Data");
         pairName = wrappedTypeName.nestedClass("Pair");
         timeName = wrappedTypeName.nestedClass("Time");
 
-        typesToWrite.add(createRecordWrapper());
+        typesToWrite.add(new Pair<>(obfuscatedPackageName, createRecordWrapper()));
     }
 
     @Override
@@ -73,7 +75,7 @@ public class InterfaceValidator implements Validator {
 
         MethodSpec fromRecord = MethodSpec
                 .methodBuilder("fromRecord")
-                .addModifiers(Modifier.STATIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .addParameter(originalTypeName, "data")
                 .returns(wrappedTypeName)
                 .addStatement("return new $1T(data)", wrappedTypeName)
@@ -105,6 +107,7 @@ public class InterfaceValidator implements Validator {
 
         return TypeSpec
                 .recordBuilder(wrappedTypeName)
+                .addModifiers(Modifier.PUBLIC)
                 .addSuperinterface(limitsStateTransitions)
                 .recordConstructor(constructor)
                 .addMethod(fromRecord)
