@@ -4,8 +4,8 @@ import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.classes.FromBuilder;
 import bot.den.foxflow.builders.classes.LimitedToBuilder;
+import bot.den.foxflow.builders.classes.StateManagerBuilder;
 import bot.den.foxflow.builders.classes.ToBuilder;
-import bot.den.foxflow.builders.methods.TransitionToBuilder.TransitionToCode;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
@@ -15,7 +15,6 @@ import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.*;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StringPublisher;
-import edu.wpi.first.units.Units;
 import edu.wpi.first.units.measure.Time;
 import edu.wpi.first.wpilibj.DSControlWord;
 import edu.wpi.first.wpilibj.Timer;
@@ -40,8 +39,6 @@ public class StateMachineGenerator {
     private final ClassName stateMachineClassName;
     private final ClassName stateManagerClassName;
     private final ClassName stateFromClassName;
-    private final ClassName stateLimitedToClassName;
-    private final ClassName stateToClassName;
     private final ClassName stateDataName;
 
     private final ClassName robotStateName;
@@ -73,8 +70,8 @@ public class StateMachineGenerator {
         stateManagerClassName = stateMachineClassName.nestedClass(simpleStateName + "StateManager");
         String obfuscatedPackageName = Util.getObfuscatedPackageName(annotatedClassName);
         stateFromClassName = ClassName.get(obfuscatedPackageName, "From");
-        stateLimitedToClassName = ClassName.get(obfuscatedPackageName, "LimitedTo");
-        stateToClassName = ClassName.get(obfuscatedPackageName, "To");
+        ClassName stateLimitedToClassName = ClassName.get(obfuscatedPackageName, "LimitedTo");
+        ClassName stateToClassName = ClassName.get(obfuscatedPackageName, "To");
 
         robotStateName = ClassName.get(RobotState.class);
 
@@ -97,8 +94,6 @@ public class StateMachineGenerator {
             }
         }
 
-        TypeSpec internalStateManager = createInternalStateManager();
-
         // LimitedTo class
         this.environment.writeType(
                 names.limitedToClassName().packageName(),
@@ -113,194 +108,12 @@ public class StateMachineGenerator {
 
         // From class
         this.environment.writeType(
-                stateFromClassName.packageName(),
+                names.fromClassName().packageName(),
                 new FromBuilder(names).build()
         );
 
+        TypeSpec internalStateManager = new StateManagerBuilder(names).build();
         generateStateMachineClass(internalStateManager);
-    }
-
-    private TypeSpec createInternalStateManager() {
-        MethodSpec whenMethod = MethodSpec
-                .methodBuilder("transitionWhen")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(stateDataName, "fromState")
-                .addParameter(stateDataName, "toState")
-                .addParameter(BooleanSupplier.class, "booleanSupplier")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                
-                                if(!$1T.this.transitionWhenMap.containsKey(fromState)) {
-                                    $1T.this.transitionWhenMap.put(fromState, new $2T<>());
-                                }
-                                
-                                var fromStateMap = $1T.this.transitionWhenMap.get(fromState);
-                                
-                                if(!fromStateMap.containsKey(toState)) {
-                                    fromStateMap.put(toState, new $3T<>());
-                                }
-                                
-                                fromStateMap.get(toState).add(booleanSupplier);
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateTransitionWhenCache();
-                                }
-                                """,
-                        stateMachineClassName,
-                        HashMap.class,
-                        ArrayList.class)
-                .build();
-
-        MethodSpec afterMethod = MethodSpec
-                .methodBuilder("transitionAfter")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(stateDataName, "fromState")
-                .addParameter(stateDataName, "toState")
-                .addParameter(Time.class, "time")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                
-                                if($1T.this.timeLimitMap.containsKey(fromState)) {
-                                    throw new $4T(
-                                            fromState,
-                                            toState,
-                                            $1T.this.timeLimitMap.get(fromState).$5L()
-                                    );
-                                }
-                                
-                                var timeRecord = new $2T(toState, time);
-                                $1T.this.timeLimitMap.put(fromState, timeRecord);
-                                $1T.this.timerMap.put(fromState, new $3T());
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateTimerCache();
-                                    $1T.this.timerMap.get(fromState).start();
-                                }
-                                """,
-                        stateMachineClassName,
-                        validator.timeClassName(),
-                        Timer.class,
-                        AmbiguousTransitionSetup.class,
-                        validator instanceof EnumValidator ? "getFirst" : "data")
-                .build();
-
-        MethodSpec runMethod = MethodSpec
-                .methodBuilder("run")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(stateDataName, "fromState")
-                .addParameter(stateDataName, "toState")
-                .addParameter(Command.class, "command")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                $1T.this.verifyToStateEnabled(toState);
-                                
-                                if(!$1T.this.transitionCommandMap.containsKey(fromState)) {
-                                    $1T.this.transitionCommandMap.put(fromState, new $2T<>());
-                                }
-                                
-                                var fromStateMap = $1T.this.transitionCommandMap.get(fromState);
-                                if(!fromStateMap.containsKey(toState)) {
-                                    fromStateMap.put(toState, new $3T<>());
-                                }
-                                
-                                fromStateMap.get(toState).add(command);
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateCommandCache();
-                                }
-                                """,
-                        stateMachineClassName,
-                        HashMap.class,
-                        ArrayList.class)
-                .build();
-
-        MethodSpec failLoudlyMethod = MethodSpec
-                .methodBuilder("failLoudly")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(stateDataName, "fromState")
-                .addParameter(stateDataName, "toState")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                $1T.this.verifyToStateEnabled(toState);
-                                
-                                if(!$1T.this.failLoudlyMap.containsKey(fromState)) {
-                                    $1T.this.failLoudlyMap.put(fromState, new $2T<>());
-                                }
-                                
-                                $1T.this.failLoudlyMap.get(fromState).add(toState);
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateFailLoudlyCache();
-                                }
-                                """,
-                        stateMachineClassName,
-                        HashSet.class)
-                .build();
-
-        MethodSpec triggerMethod = MethodSpec
-                .methodBuilder("trigger")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(Trigger.class)
-                .addParameter(EventLoop.class, "eventLoop")
-                .addParameter(stateDataName, "state")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(state);
-                                
-                                if(! $1T.this.triggerMap.containsKey(state)) {
-                                    var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
-                                    triggerMap.put(state, trigger);
-                                }
-                                
-                                return triggerMap.get(state);
-                                """,
-                        stateMachineClassName
-                )
-                .build();
-
-        FieldHelper<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
-            @Override
-            public CodeBlock enumCode() {
-                return CodeBlock.of("return $T.this.transitionTo(state);", stateMachineClassName);
-            }
-
-            @Override
-            public CodeBlock internalData() {
-                return CodeBlock.of("");
-            }
-
-            @Override
-            public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
-                return CodeBlock
-                        .builder()
-                        .add("return $T.this.transitionTo(", stateMachineClassName)
-                        .add(
-                                recordValidator.dataEmitter(fields)
-                                        .emit()
-                        )
-                        .add(");")
-                        .build();
-            }
-
-            @Override
-            public TypeName returnType() {
-                return ClassName.get(Command.class);
-            }
-        });
-
-        TypeSpec.Builder managerType = TypeSpec
-                .classBuilder(stateManagerClassName)
-                .addModifiers(Modifier.PUBLIC)
-                .addMethod(whenMethod)
-                .addMethod(afterMethod)
-                .addMethod(runMethod)
-                .addMethod(failLoudlyMethod)
-                .addMethod(triggerMethod);
-
-        for(var transitionToMethod : transitionToMethods) {
-            managerType.addMethod(transitionToMethod);
-        }
-
-        return managerType.build();
     }
 
     private void generateStateMachineClass(TypeSpec internalStateManager) {

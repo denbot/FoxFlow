@@ -18,7 +18,6 @@ public class FromBuilder implements TypedBuilder<TypeSpec> {
     private final TypeSpec.Builder builder;
     private final Names names;
 
-
     public FromBuilder(
             Names names
     ) {
