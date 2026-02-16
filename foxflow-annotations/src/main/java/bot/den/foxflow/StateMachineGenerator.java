@@ -3,6 +3,7 @@ package bot.den.foxflow;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.classes.LimitedToBuilder;
+import bot.den.foxflow.builders.classes.ToBuilder;
 import bot.den.foxflow.builders.methods.TransitionToBuilder.TransitionToCode;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
@@ -96,8 +97,19 @@ public class StateMachineGenerator {
         }
 
         TypeSpec internalStateManager = createInternalStateManager();
-        generateLimitedToClass();
-        generateToClass();
+
+        // LimitedTo class
+        this.environment.writeType(
+                names.limitedToClassName().packageName(),
+                new LimitedToBuilder(names).build()
+        );
+
+        // To class
+        this.environment.writeType(
+                names.toClassName().packageName(),
+                new ToBuilder(names).build()
+        );
+
         generateFromClass();
         generateStateMachineClass(internalStateManager);
     }
@@ -283,72 +295,6 @@ public class StateMachineGenerator {
         }
 
         return managerType.build();
-    }
-
-    private void generateLimitedToClass() {
-        var limitedToBuilder = new LimitedToBuilder(names);
-
-        this.environment.writeType(
-                names.limitedToClassName().packageName(),
-                limitedToBuilder.build()
-        );
-    }
-
-    private void generateToClass() {
-        MethodSpec constructor = MethodSpec
-                .constructorBuilder()
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(stateManagerClassName, "manager")
-                .addParameter(stateDataName, "fromState")
-                .addParameter(stateDataName, "toState")
-                .addStatement("super(manager, fromState, toState)")
-                .build();
-
-        MethodSpec whenMethod = MethodSpec
-                .methodBuilder("transitionWhen")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(BooleanSupplier.class, "booleanSupplier")
-                .returns(stateToClassName)
-                .addStatement("this.manager.transitionWhen(this.fromState, this.toState, booleanSupplier)")
-                .addStatement("return this")
-                .build();
-
-        MethodSpec alwaysMethod = MethodSpec
-                .methodBuilder("transitionAlways")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(stateToClassName)
-                .addStatement("return transitionWhen(() -> true)")
-                .build();
-
-        MethodSpec afterDoubleMethod = MethodSpec
-                .methodBuilder("transitionAfter")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(double.class, "seconds")
-                .returns(stateToClassName)
-                .addStatement("return transitionAfter($T.Seconds.of(seconds))", Units.class)
-                .build();
-
-        MethodSpec afterTimeMethod = MethodSpec
-                .methodBuilder("transitionAfter")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(Time.class, "time")
-                .returns(stateToClassName)
-                .addStatement("this.manager.transitionAfter(this.fromState, this.toState, time)")
-                .addStatement("return this")
-                .build();
-
-        TypeSpec type = TypeSpec
-                .classBuilder(stateToClassName)
-                .addModifiers(Modifier.PUBLIC)
-                .superclass(stateLimitedToClassName)
-                .addMethod(constructor)
-                .addMethod(whenMethod)
-                .addMethod(alwaysMethod)
-                .addMethod(afterDoubleMethod)
-                .addMethod(afterTimeMethod)
-                .build();
-
-        this.environment.writeType(stateToClassName.packageName(), type);
     }
 
     private void generateFromClass() {

@@ -22,6 +22,7 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
         this.names = names;
         builder = TypeSpec.classBuilder(names.limitedToClassName())
                 .addModifiers(Modifier.PUBLIC);
+
         addFields();
         addConstructor();
         addRunMethod();
