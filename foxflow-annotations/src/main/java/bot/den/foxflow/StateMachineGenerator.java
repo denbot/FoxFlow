@@ -2,6 +2,7 @@ package bot.den.foxflow;
 
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.Names;
+import bot.den.foxflow.builders.classes.FromBuilder;
 import bot.den.foxflow.builders.classes.LimitedToBuilder;
 import bot.den.foxflow.builders.classes.ToBuilder;
 import bot.den.foxflow.builders.methods.TransitionToBuilder.TransitionToCode;
@@ -110,7 +111,12 @@ public class StateMachineGenerator {
                 new ToBuilder(names).build()
         );
 
-        generateFromClass();
+        // From class
+        this.environment.writeType(
+                stateFromClassName.packageName(),
+                new FromBuilder(names).build()
+        );
+
         generateStateMachineClass(internalStateManager);
     }
 
@@ -295,135 +301,6 @@ public class StateMachineGenerator {
         }
 
         return managerType.build();
-    }
-
-    private void generateFromClass() {
-        FieldSpec managerField = FieldSpec
-                .builder(stateManagerClassName, "manager")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .build();
-
-        FieldSpec targetStateField = FieldSpec
-                .builder(stateDataName, "targetState")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .build();
-
-        MethodSpec constructor = MethodSpec
-                .constructorBuilder()
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(stateManagerClassName, "manager")
-                .addParameter(stateDataName, "state")
-                .addStatement("this.targetState = state")
-                .addStatement("this.manager = manager")
-                .build();
-
-        FieldHelper<MethodSpec> toMethods = validator.newFieldHelper();
-        toMethods.userDataType(() -> {
-            if (validator instanceof RecordValidator) {
-                // Inside the method doesn't call this, and we don't want the user to be able to in order to avoid RobotState issues
-                return null;
-            }
-
-            return MethodSpec
-                    .methodBuilder("to")
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(validator.originalTypeName(), "state")
-                    .returns(stateToClassName)
-                    .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
-                    .build();
-        });
-
-        toMethods.wrappedType(() -> MethodSpec
-                .methodBuilder("to")
-                .addModifiers(Modifier.PRIVATE)
-                .returns(stateToClassName)
-                .addParameter(validator.wrappedClassName(), "state")
-                .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
-                .build());
-
-        toMethods.permuteFields(FieldHelper.optional)
-                .fields((fields, className) -> {
-                    if (!(validator instanceof RecordValidator rv)) {
-                        throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
-                    }
-
-                    // Can't go to an empty list
-                    if (className == null) {
-                        return null;
-                    }
-
-                    boolean hasRobotStateField = fields.stream().anyMatch(f -> f.value().equals(robotStateName));
-                    var returnValue = hasRobotStateField ? stateLimitedToClassName : stateToClassName;
-                    var callingMethodName = returnValue.equals(stateToClassName) ? "to" : "limitedTo";
-
-                    MethodSpec.Builder methodBuilder = MethodSpec
-                            .methodBuilder("to")
-                            .addModifiers(Modifier.PUBLIC)
-                            .returns(returnValue);
-
-                    for (var field : fields) {
-                        methodBuilder.addParameter(field.value(), field.name());
-                    }
-
-                    CodeBlock code = CodeBlock
-                            .builder()
-                            .add("return $L(\n", callingMethodName)
-                            .add(
-                                    rv.dataEmitter(fields)
-                                            .withConstructor()
-                                            .withNestedClassesWrapped()
-                                            .emit()
-                            )
-                            .add(");\n")
-                            .build();
-
-                    return methodBuilder.addCode(code).build();
-                });
-
-        if (validator instanceof RecordValidator rv && rv.robotStatePresent) {
-            var method = MethodSpec
-                    .methodBuilder("limitedTo")
-                    .addModifiers(Modifier.PRIVATE)
-                    .returns(stateLimitedToClassName)
-                    .addParameter(stateDataName, "state")
-                    .addStatement("return new $T(this.manager, this.targetState, state)", stateLimitedToClassName)
-                    .build();
-
-            toMethods.add(method);
-        }
-
-
-        MethodSpec triggerDefaultMethod = MethodSpec
-                .methodBuilder("trigger")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(Trigger.class)
-                .addStatement("return this.trigger($T.getInstance().getDefaultButtonLoop())", CommandScheduler.class)
-                .build();
-
-        MethodSpec triggerEventLoopMethod = MethodSpec
-                .methodBuilder("trigger")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(Trigger.class)
-                .addParameter(EventLoop.class, "eventLoop")
-                .addStatement("return manager.trigger(eventLoop, targetState)")
-                .build();
-
-        TypeSpec.Builder typeBuilder = TypeSpec
-                .classBuilder(stateFromClassName)
-                .addModifiers(Modifier.PUBLIC)
-                .addField(managerField)
-                .addField(targetStateField)
-                .addMethod(constructor);
-
-        for (var toMethod : toMethods) {
-            typeBuilder.addMethod(toMethod);
-        }
-        TypeSpec type = typeBuilder
-                .addMethod(triggerDefaultMethod)
-                .addMethod(triggerEventLoopMethod)
-                .build();
-
-        this.environment.writeType(stateFromClassName.packageName(), type);
     }
 
     private void generateStateMachineClass(TypeSpec internalStateManager) {
