@@ -1,10 +1,8 @@
 package bot.den.foxflow.validator;
 
-import bot.den.foxflow.builders.Builder;
+import bot.den.foxflow.builders.FieldHelper;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.TypeName;
-
-import java.util.List;
 
 public interface Validator {
     ClassName originalTypeName();
@@ -17,5 +15,5 @@ public interface Validator {
 
     boolean supportsStateTransition();
 
-    <R> Builder<R> newBuilder();
+    <R> FieldHelper<R> newFieldHelper();
 }

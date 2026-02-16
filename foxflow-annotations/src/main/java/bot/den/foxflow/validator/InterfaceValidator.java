@@ -4,7 +4,7 @@ import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.Environment;
 import bot.den.foxflow.LimitsTypeTransitions;
 import bot.den.foxflow.Util;
-import bot.den.foxflow.builders.Builder;
+import bot.den.foxflow.builders.FieldHelper;
 import com.palantir.javapoet.*;
 import edu.wpi.first.math.Pair;
 import edu.wpi.first.units.measure.Time;
@@ -57,7 +57,7 @@ public class InterfaceValidator implements Validator {
     }
 
     @Override
-    public <R> Builder<R> newBuilder() {
+    public <R> FieldHelper<R> newFieldHelper() {
         throw new UnsupportedOperationException("Not currently supported on interfaces");
     }
 

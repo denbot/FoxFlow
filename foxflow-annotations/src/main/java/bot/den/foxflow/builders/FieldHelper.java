@@ -10,7 +10,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-public class Builder<T> implements Iterable<T> {
+public class FieldHelper<T> implements Iterable<T> {
     public static Function<Field<ClassName>, Collection<Field<ClassName>>> identity = List::of;
     public static Function<Field<ClassName>, Collection<Field<ClassName>>> optional = classNameField -> Stream.of(null, classNameField).toList();
 
@@ -19,14 +19,14 @@ public class Builder<T> implements Iterable<T> {
     private final Map<List<Field<ClassName>>, ClassName> fieldsToDataClass;
     private final Map<ClassName, List<Field<ClassName>>> dataClassToFields;
 
-    public Builder() {
+    public FieldHelper() {
         this.results = new ArrayList<>();
         this.fields = new ArrayList<>();
         this.fieldsToDataClass = new HashMap<>();
         this.dataClassToFields = new HashMap<>();
     }
 
-    public Builder(List<Field<ClassName>> fields, Map<List<Field<ClassName>>, ClassName> fieldsToDataClass) {
+    public FieldHelper(List<Field<ClassName>> fields, Map<List<Field<ClassName>>, ClassName> fieldsToDataClass) {
         this.results = new ArrayList<>();
         this.fields = fields;
         this.fieldsToDataClass = fieldsToDataClass;

@@ -1,7 +1,7 @@
 package bot.den.foxflow.validator;
 
 import bot.den.foxflow.*;
-import bot.den.foxflow.builders.Builder;
+import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import com.palantir.javapoet.*;
 import edu.wpi.first.math.Pair;
@@ -193,8 +193,8 @@ public class RecordValidator implements Validator {
     }
 
     @Override
-    public <R> bot.den.foxflow.builders.Builder<R> newBuilder() {
-        return new Builder<>(fields, fieldToInnerClass);
+    public <R> FieldHelper<R> newFieldHelper() {
+        return new FieldHelper<>(fields, fieldToInnerClass);
     }
 
     private TypeSpec createRecordWrapper() {

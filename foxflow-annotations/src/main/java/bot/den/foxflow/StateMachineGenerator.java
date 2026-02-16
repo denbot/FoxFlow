@@ -1,6 +1,6 @@
 package bot.den.foxflow;
 
-import bot.den.foxflow.builders.Builder;
+import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
@@ -223,7 +223,7 @@ public class StateMachineGenerator {
                 )
                 .build();
 
-        Builder<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
+        FieldHelper<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
             @Override
             public CodeBlock enumCode() {
                 return CodeBlock.of("return $T.this.transitionTo(state);", stateMachineClassName);
@@ -310,7 +310,7 @@ public class StateMachineGenerator {
                 .addStatement("this.manager.run(this.fromState, this.toState, command)")
                 .build();
 
-        Builder<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
+        FieldHelper<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
             @Override
             public CodeBlock enumCode() {
                 return CodeBlock.of("this.run(this.manager.transitionTo(state));");
@@ -440,7 +440,7 @@ public class StateMachineGenerator {
                 .addStatement("this.manager = manager")
                 .build();
 
-        Builder<MethodSpec> toMethods = validator.newBuilder();
+        FieldHelper<MethodSpec> toMethods = validator.newFieldHelper();
         toMethods.userDataType(() -> {
             if (validator instanceof RecordValidator) {
                 // Inside the method doesn't call this, and we don't want the user to be able to in order to avoid RobotState issues
@@ -464,7 +464,7 @@ public class StateMachineGenerator {
                 .addStatement("return new $T(this.manager, this.targetState, state)", stateToClassName)
                 .build());
 
-        toMethods.permuteFields(Builder.optional)
+        toMethods.permuteFields(FieldHelper.optional)
                 .fields((fields, className) -> {
                     if (!(validator instanceof RecordValidator rv)) {
                         throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
@@ -753,7 +753,7 @@ public class StateMachineGenerator {
                     .build();
         }
 
-        Builder<MethodSpec> constructors = validator.newBuilder();
+        FieldHelper<MethodSpec> constructors = validator.newFieldHelper();
 
         constructors.userDataType(() -> {
             // We disallow using a record class in the constructor publicly just in case the record has a RobotState.
@@ -840,7 +840,7 @@ public class StateMachineGenerator {
                 .addStatement("return this.currentState")
                 .build();
 
-        Builder<MethodSpec> stateMethods = validator.newBuilder();
+        FieldHelper<MethodSpec> stateMethods = validator.newFieldHelper();
 
         stateMethods.userDataType(() -> {
             CodeBlock dataParameter;
@@ -872,7 +872,7 @@ public class StateMachineGenerator {
                     .build();
         });
 
-        stateMethods.permuteFields(Builder.optional)
+        stateMethods.permuteFields(FieldHelper.optional)
                 .fields((fields, className) -> {
                     if (!(validator instanceof RecordValidator rv)) {
                         throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
@@ -907,7 +907,7 @@ public class StateMachineGenerator {
                     return methodBuilder.addCode(code).build();
                 });
 
-        Builder<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
+        FieldHelper<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
             @Override
             public CodeBlock enumCode() {
                 return CodeBlock.of("return $T.runOnce(() -> updateState(state)).ignoringDisable(true);", Commands.class);
@@ -1509,8 +1509,8 @@ public class StateMachineGenerator {
         this.environment.writeType(stateMachineClassName.packageName(), typeBuilder.build());
     }
 
-    private Builder<MethodSpec> transitionToMethods(TransitionToCode transitionToCode) {
-        Builder<MethodSpec> transitionToMethods = validator.newBuilder();
+    private FieldHelper<MethodSpec> transitionToMethods(TransitionToCode transitionToCode) {
+        FieldHelper<MethodSpec> transitionToMethods = validator.newFieldHelper();
         transitionToMethods.userDataType(() -> {
             if (validator instanceof EnumValidator) {
                 return MethodSpec
@@ -1546,7 +1546,7 @@ public class StateMachineGenerator {
                     .build());
         }
 
-        transitionToMethods.permuteFields(Builder.optional)
+        transitionToMethods.permuteFields(FieldHelper.optional)
                 .fields((fields, className) -> {
                     if (!(validator instanceof RecordValidator rv)) {
                         throw new UnsupportedOperationException("This method should not have been called with a non-record validator");
