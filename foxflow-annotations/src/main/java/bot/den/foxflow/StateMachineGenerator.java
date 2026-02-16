@@ -23,39 +23,19 @@ public class StateMachineGenerator {
         this.processingEnv = environment.processingEnvironment();
         var element = environment.element();
 
-        ClassName stateDataName;
         if (element.getKind() == ElementKind.ENUM) {
             this.validator = new EnumValidator(environment);
-            stateDataName = validator.originalTypeName();
-
         } else if (element.getKind() == ElementKind.RECORD) {
             this.validator = new RecordValidator(environment);
-            stateDataName = validator.wrappedClassName();
-
         } else {
             throw new RuntimeException("The StateMachine annotation is only valid on enums and records");
         }
 
         ClassName annotatedClassName = (ClassName) ClassName.get(element.asType());
-        String simpleStateName = annotatedClassName.simpleName();
-        ClassName stateMachineClassName = annotatedClassName.peerClass(simpleStateName + "StateMachine");
-        ClassName stateManagerClassName = stateMachineClassName.nestedClass(simpleStateName + "StateManager");
-        String obfuscatedPackageName = Util.getObfuscatedPackageName(annotatedClassName);
-        ClassName stateFromClassName = ClassName.get(obfuscatedPackageName, "From");
-        ClassName stateLimitedToClassName = ClassName.get(obfuscatedPackageName, "LimitedTo");
-        ClassName stateToClassName = ClassName.get(obfuscatedPackageName, "To");
-
-        ClassName robotStateName = ClassName.get(RobotState.class);
 
         this.names = new Names(
                 validator,
-                stateMachineClassName,
-                stateManagerClassName,
-                stateFromClassName,
-                stateLimitedToClassName,
-                stateToClassName,
-                stateDataName,
-                robotStateName
+                annotatedClassName
         );
     }
 
