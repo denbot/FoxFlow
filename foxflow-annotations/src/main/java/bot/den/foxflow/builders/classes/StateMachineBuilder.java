@@ -12,6 +12,7 @@ import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
+import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.*;
 import com.palantir.javapoet.MethodSpec.Builder;
 import edu.wpi.first.networktables.NetworkTableInstance;
@@ -34,6 +35,7 @@ import java.util.stream.Stream;
 public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     private final TypeSpec.Builder builder;
     private final Names names;
+    private final Validator validator;
 
     private final String FROM = "from";
 
@@ -47,6 +49,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
             Names names
     ) {
         this.names = names;
+        this.validator = names.validator();
         builder = TypeSpec.classBuilder(names.stateMachineClassName())
                 .addModifiers(Modifier.PUBLIC);
 
@@ -65,7 +68,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         );
 
         // Individual boolean enabled fields
-        if (names.validator() instanceof RecordValidator rv) {
+        if (validator instanceof RecordValidator rv) {
             innerClassEnabledFields
                     .forEach((key, value) -> {
                         for (var innerClassName : rv.fieldToInnerClass.values()) {
@@ -115,7 +118,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
     private void addCurrentDataFields() {
         builder.addField(FieldSpec
-                .builder(names.validator().originalTypeName(), "currentState")
+                .builder(validator.originalTypeName(), "currentState")
                 .addModifiers(Modifier.PRIVATE)
                 .build()
         );
@@ -169,7 +172,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                 ClassName.get(BooleanSupplier.class),
                 ParameterizedTypeName.get(
                         ClassName.get(List.class),
-                        names.validator().pairClassName()
+                        validator.pairClassName()
                 )
         );
 
@@ -274,7 +277,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         var timeLimitMapType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 names.dataTypeName(),
-                names.validator().timeClassName()
+                validator.timeClassName()
         );
 
         builder.addField(FieldSpec
@@ -297,7 +300,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         );
 
         builder.addField(FieldSpec
-                .builder(names.validator().timeClassName(), "timeLimitCache")
+                .builder(validator.timeClassName(), "timeLimitCache")
                 .addModifiers(Modifier.PRIVATE)
                 .build()
         );
@@ -317,7 +320,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addControlWordFields() {
-        if (!(names.validator() instanceof RecordValidator rv)) {
+        if (!(validator instanceof RecordValidator rv)) {
             return;
         }
         if (!rv.robotStatePresent) {
@@ -333,7 +336,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addConstructors() {
-        var validator = names.validator();
         FieldHelper<MethodSpec> constructors = validator.newFieldHelper();
 
         constructors.userDataType(() -> {
@@ -420,14 +422,13 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         builder.addMethod(MethodSpec
                 .methodBuilder("currentState")
                 .addModifiers(Modifier.PUBLIC)
-                .returns(names.validator().originalTypeName())
+                .returns(validator.originalTypeName())
                 .addStatement("return this.currentState")
                 .build()
         );
     }
 
     private void addStateMethods() {
-        var validator = names.validator();
         FieldHelper<MethodSpec> stateMethods = validator.newFieldHelper();
 
         stateMethods.userDataType(() -> {
@@ -555,7 +556,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                 .addModifiers(Modifier.PUBLIC)
                 .addStatement("$T nextState = this.getNextState()", names.dataTypeName());
 
-        if (names.validator() instanceof RecordValidator rv && rv.robotStatePresent) {
+        if (validator instanceof RecordValidator rv && rv.robotStatePresent) {
             var robotFieldOption = rv.fields.stream().filter(f -> f.value().equals(names.robotStateName())).findFirst();
             if (robotFieldOption.isEmpty()) {
                 throw new RuntimeException("Robot state was supposedly present but we couldn't find the field");
@@ -598,8 +599,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addGetNextStateMethod() {
-        var validator = names.validator();
-
         var pairList = ParameterizedTypeName.get(
                 ClassName.get(List.class),
                 validator.pairClassName()
@@ -710,7 +709,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addUpdateStateMethod() {
-        var validator = names.validator();
         MethodSpec.Builder updateStateMethodBuilder = MethodSpec
                 .methodBuilder("updateState")
                 .addModifiers(Modifier.PRIVATE)
@@ -846,7 +844,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addVerifyStateEnabledCommands() {
-        var validator = names.validator();
         List<MethodSpec> verifyStateEnabledMethods = new ArrayList<>();
 
         for (var entry : innerClassEnabledFields.entrySet()) {
@@ -895,7 +892,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addGenerateSubDataStatesMethods() {
-        var validator = names.validator();
         List<MethodSpec> generateSubDataStatesMethods = new ArrayList<>();
         for (var entry : innerClassEnabledFields.entrySet()) {
             String key = entry.getKey();
@@ -953,7 +949,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addRegenerateMethods() {
-        var validator = names.validator();
         builder.addMethod(MethodSpec
                 .methodBuilder("regenerateTransitionWhenCache")
                 .addModifiers(Modifier.PRIVATE)
