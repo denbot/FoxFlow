@@ -4,7 +4,7 @@ import bot.den.foxflow.DefaultState;
 import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.Environment;
 import bot.den.foxflow.RobotState;
-import bot.den.foxflow.builders.Builder;
+import bot.den.foxflow.builders.FieldHelper;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.ParameterizedTypeName;
 import com.palantir.javapoet.TypeName;
@@ -86,7 +86,7 @@ public class EnumValidator implements Validator {
     }
 
     @Override
-    public <R> Builder<R> newBuilder() {
-        return new Builder<>();
+    public <R> FieldHelper<R> newFieldHelper() {
+        return new FieldHelper<>();
     }
 }
