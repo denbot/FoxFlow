@@ -1,6 +1,9 @@
 package bot.den.foxflow;
 
 import bot.den.foxflow.builders.FieldHelper;
+import bot.den.foxflow.builders.Names;
+import bot.den.foxflow.builders.classes.LimitedToBuilder;
+import bot.den.foxflow.builders.methods.TransitionToBuilder.TransitionToCode;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
@@ -43,6 +46,8 @@ public class StateMachineGenerator {
 
     private final Validator validator;
 
+    private final Names names;
+
     public StateMachineGenerator(Environment environment) {
         this.environment = environment;
         this.processingEnv = environment.processingEnvironment();
@@ -70,6 +75,17 @@ public class StateMachineGenerator {
         stateToClassName = ClassName.get(obfuscatedPackageName, "To");
 
         robotStateName = ClassName.get(RobotState.class);
+
+        this.names = new Names(
+                validator,
+                stateMachineClassName,
+                stateManagerClassName,
+                stateFromClassName,
+                stateLimitedToClassName,
+                stateToClassName,
+                stateDataName,
+                robotStateName
+        );
     }
 
     public void generate() {
@@ -270,97 +286,12 @@ public class StateMachineGenerator {
     }
 
     private void generateLimitedToClass() {
-        FieldSpec managerField = FieldSpec
-                .builder(stateManagerClassName, "manager")
-                .addModifiers(Modifier.FINAL)
-                .build();
+        var limitedToBuilder = new LimitedToBuilder(names);
 
-        FieldSpec fromStateField = FieldSpec
-                .builder(stateDataName, "fromState")
-                .addModifiers(Modifier.FINAL)
-                .build();
-
-        FieldSpec toStateField = FieldSpec
-                .builder(stateDataName, "toState")
-                .addModifiers(Modifier.FINAL)
-                .build();
-
-        MethodSpec.Builder constructorBuilder = MethodSpec
-                .constructorBuilder()
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(stateManagerClassName, "manager")
-                .addParameter(stateDataName, "fromState")
-                .addParameter(stateDataName, "toState")
-                .addCode("""
-                        this.manager = manager;
-                        this.fromState = fromState;
-                        this.toState = toState;
-                        """);
-
-        if (validator.supportsStateTransition()) {
-            constructorBuilder.addStatement("fromState.attemptTransitionTo(toState)");
-        }
-
-        MethodSpec constructor = constructorBuilder.build();
-
-        MethodSpec runMethod = MethodSpec
-                .methodBuilder("run")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(Command.class, "command")
-                .addStatement("this.manager.run(this.fromState, this.toState, command)")
-                .build();
-
-        FieldHelper<MethodSpec> transitionToMethods = transitionToMethods(new TransitionToCode() {
-            @Override
-            public CodeBlock enumCode() {
-                return CodeBlock.of("this.run(this.manager.transitionTo(state));");
-            }
-
-            @Override
-            public CodeBlock internalData() {
-                return CodeBlock.of("");
-            }
-
-            @Override
-            public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
-                return CodeBlock
-                        .builder()
-                        .add("this.run(this.manager.transitionTo(")
-                        .add(
-                                recordValidator.dataEmitter(fields)
-                                        .emit()
-                        )
-                        .add("));")
-                        .build();
-            }
-
-            @Override
-            public TypeName returnType() {
-                return TypeName.VOID;
-            }
-        });
-
-        MethodSpec failLoudlyMethod = MethodSpec
-                .methodBuilder("failLoudly")
-                .addModifiers(Modifier.PUBLIC)
-                .addStatement("this.manager.failLoudly(this.fromState, this.toState)")
-                .build();
-
-        TypeSpec.Builder type = TypeSpec
-                .classBuilder(stateLimitedToClassName)
-                .addModifiers(Modifier.PUBLIC)
-                .addField(managerField)
-                .addField(fromStateField)
-                .addField(toStateField)
-                .addMethod(constructor)
-                .addMethod(runMethod)
-                .addMethod(failLoudlyMethod);
-
-        for (var transitionToMethod : transitionToMethods) {
-            type.addMethod(transitionToMethod);
-        }
-
-        this.environment.writeType(stateLimitedToClassName.packageName(), type.build());
+        this.environment.writeType(
+                names.limitedToClassName().packageName(),
+                limitedToBuilder.build()
+        );
     }
 
     private void generateToClass() {
