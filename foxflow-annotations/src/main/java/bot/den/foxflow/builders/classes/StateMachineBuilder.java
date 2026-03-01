@@ -2,6 +2,7 @@ package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.DefaultState;
 import bot.den.foxflow.Field;
+import bot.den.foxflow.Generated;
 import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.Names;
@@ -52,7 +53,8 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         this.names = names;
         this.validator = names.validator();
         builder = TypeSpec.classBuilder(names.stateMachineClassName())
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class);
 
         subDataSetType = ParameterizedTypeName.get(
                 ClassName.get(Set.class),

@@ -1,5 +1,6 @@
 package bot.den.foxflow.builders.classes;
 
+import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import com.palantir.javapoet.MethodSpec;
@@ -20,6 +21,7 @@ public class ToBuilder implements TypedBuilder<TypeSpec> {
         this.names = names;
         builder = TypeSpec.classBuilder(names.toClassName())
                 .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class)
                 .superclass(names.limitedToClassName());
 
         addConstructor();
