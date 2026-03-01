@@ -1,6 +1,5 @@
 package bot.den.foxflow;
 
-
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
