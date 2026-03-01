@@ -17,6 +17,7 @@ import com.palantir.javapoet.*;
 import com.palantir.javapoet.MethodSpec.Builder;
 import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.networktables.StringPublisher;
+import edu.wpi.first.networktables.StringTopic;
 import edu.wpi.first.wpilibj.DSControlWord;
 import edu.wpi.first.wpilibj.Timer;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -139,9 +140,16 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         );
 
         builder.addField(FieldSpec
-                .builder(StringPublisher.class, "currentStateTopic")
+                .builder(StringTopic.class, "currentStateTopic")
+                .addModifiers(Modifier.PUBLIC, Modifier.FINAL)
+                .initializer("networkTableInstance.getStringTopic(\"FoxFlow/$1L/State\")", validator.originalTypeName().simpleName())
+                .build()
+        );
+
+        builder.addField(FieldSpec
+                .builder(StringPublisher.class, "currentStatePublisher")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("networkTableInstance.getStringTopic(\"StateMachine/currentState\").publish()")
+                .initializer("currentStateTopic.publish()")
                 .build()
         );
     }
@@ -349,7 +357,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                     .addCode("""
                             this.currentState = initialState;
                             this.currentSubData = this.generateToSubDataStates(initialState);
-                            currentStateTopic.set(currentState.toString());
+                            currentStatePublisher.set(currentState.toString());
                             """)
                     .build();
         });
@@ -413,7 +421,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                     return constructorBuilder.build();
                 });
 
-        for(var method : constructors) {
+        for (var method : constructors) {
             builder.addMethod(method);
         }
     }
@@ -496,7 +504,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                     return methodBuilder.addCode(code).build();
                 });
 
-        for(var method: stateMethods) {
+        for (var method : stateMethods) {
             builder.addMethod(method);
         }
     }
@@ -534,7 +542,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
             }
         });
 
-        for(var method : transitionToBuilder.build()) {
+        for (var method : transitionToBuilder.build()) {
             builder.addMethod(method);
         }
     }
@@ -806,7 +814,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                 }
                                 
                                 this.currentState = nextState;
-                                currentStateTopic.set(currentState.toString());
+                                currentStatePublisher.set(currentState.toString());
                                 this.currentSubData = nextFromStates;
                                 
                                 runTransitionCommands(nextToStates);
@@ -886,7 +894,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
             verifyStateEnabledMethods.add(verifyStateEnabledMethodBuilder.build());
         }
 
-        for(var method : verifyStateEnabledMethods) {
+        for (var method : verifyStateEnabledMethods) {
             builder.addMethod(method);
         }
     }
@@ -943,7 +951,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
             generateSubDataStatesMethods.add(generateSubDataStateBuilder.build());
         }
 
-        for(var method : generateSubDataStatesMethods) {
+        for (var method : generateSubDataStatesMethods) {
             builder.addMethod(method);
         }
     }

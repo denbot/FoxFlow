@@ -3,6 +3,7 @@ package bot.den.foxflow.tests;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import edu.wpi.first.hal.HAL;
+import edu.wpi.first.networktables.NetworkTableInstance;
 import edu.wpi.first.wpilibj.event.EventLoop;
 import edu.wpi.first.wpilibj.simulation.SimHooks;
 import edu.wpi.first.wpilibj2.command.Command;
@@ -621,5 +622,23 @@ public class BasicEnumStateMachineTest {
                 AmbiguousTransitionSetup.class,
                 () -> machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_C).transitionAfter(Seconds.of(1))
         );
+    }
+
+    @Test
+    void verifyCurrentTopicIsBasedOnStateMachineName() {
+        var machine = new BasicEnumStateMachine(BasicEnum.STATE_A);
+
+        assertEquals("FoxFlow/BasicEnum/State", machine.currentStateTopic.getName());
+    }
+
+    @Test
+    void changingStateUpdatesSubscription() {
+        var machine = new BasicEnumStateMachine(BasicEnum.START);
+        var subscriber = machine.currentStateTopic.subscribe(BasicEnum.STATE_D.name());
+
+        assertEquals(BasicEnum.START.toString(), subscriber.get());
+        CommandScheduler.getInstance().schedule(machine.transitionTo(BasicEnum.STATE_A));
+
+        assertEquals(BasicEnum.STATE_A.toString(), subscriber.get());
     }
 }
