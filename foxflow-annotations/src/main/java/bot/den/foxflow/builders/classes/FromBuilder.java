@@ -1,5 +1,6 @@
 package bot.den.foxflow.builders.classes;
 
+import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
@@ -23,7 +24,8 @@ public class FromBuilder implements TypedBuilder<TypeSpec> {
     ) {
         this.names = names;
         builder = TypeSpec.classBuilder(names.fromClassName())
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class);
 
         addFields();
         addConstructor();

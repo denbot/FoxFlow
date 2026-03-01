@@ -1,6 +1,7 @@
 package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.Field;
+import bot.den.foxflow.Generated;
 import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.TypedBuilder;
@@ -27,7 +28,8 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         this.validator = validator;
         this.builder = TypeSpec
                 .interfaceBuilder(validator.wrappedClassName())
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class);
 
         allFieldsPresentDataClass = validator.fieldToInnerClass.get(validator.fields);
         needsRemoveNulls = validator.innerClassToField.get(allFieldsPresentDataClass).size() > 1;

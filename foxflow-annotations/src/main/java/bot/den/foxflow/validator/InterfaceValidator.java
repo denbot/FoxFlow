@@ -1,9 +1,6 @@
 package bot.den.foxflow.validator;
 
-import bot.den.foxflow.LimitsStateTransitions;
-import bot.den.foxflow.Environment;
-import bot.den.foxflow.LimitsTypeTransitions;
-import bot.den.foxflow.Util;
+import bot.den.foxflow.*;
 import bot.den.foxflow.builders.FieldHelper;
 import com.palantir.javapoet.*;
 import edu.wpi.first.math.Pair;
@@ -108,6 +105,7 @@ public class InterfaceValidator implements Validator {
         return TypeSpec
                 .recordBuilder(wrappedTypeName)
                 .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class)
                 .addSuperinterface(limitsStateTransitions)
                 .recordConstructor(constructor)
                 .addMethod(fromRecord)

@@ -1,6 +1,7 @@
 package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.Field;
+import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.methods.TransitionToBuilder;
@@ -21,7 +22,8 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
     ) {
         this.names = names;
         builder = TypeSpec.classBuilder(names.limitedToClassName())
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class);
 
         addFields();
         addConstructor();
