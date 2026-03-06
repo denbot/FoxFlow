@@ -9,6 +9,7 @@ import bot.den.foxflow.builders.methods.TransitionToBuilder.TransitionToCode;
 import bot.den.foxflow.validator.RecordValidator;
 import com.palantir.javapoet.*;
 import edu.wpi.first.wpilibj2.command.Command;
+import edu.wpi.first.wpilibj2.command.Commands;
 
 import javax.lang.model.element.Modifier;
 import java.util.List;
@@ -95,24 +96,26 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
         var transitionToBuilder = new TransitionToBuilder(names, new TransitionToCode() {
             @Override
             public CodeBlock enumCode() {
-                return CodeBlock.of("this.run(this.manager.transitionTo(state));");
+                return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", Commands.class);
             }
 
             @Override
             public CodeBlock internalData() {
-                return CodeBlock.of("");
+                return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", Commands.class);
             }
 
             @Override
             public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
                 return CodeBlock
                         .builder()
-                        .add("this.run(this.manager.transitionTo(")
+                        .add("transitionTo(")
                         .add(
                                 recordValidator.dataEmitter(fields)
+                                        .withConstructor()
+                                        .withNestedClassesWrapped()
                                         .emit()
                         )
-                        .add("));")
+                        .add(");")
                         .build();
             }
 
@@ -122,7 +125,7 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
             }
         });
 
-        for(var method : transitionToBuilder.build()) {
+        for (var method : transitionToBuilder.build()) {
             builder.addMethod(method);
         }
     }
