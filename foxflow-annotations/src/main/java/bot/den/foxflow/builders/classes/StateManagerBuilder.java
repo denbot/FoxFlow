@@ -1,11 +1,11 @@
 package bot.den.foxflow.builders.classes;
 
-import bot.den.foxflow.Field;
+import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
-import bot.den.foxflow.builders.methods.TransitionToBuilder;
-import bot.den.foxflow.builders.methods.TransitionToBuilder.TransitionToCode;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
+import bot.den.foxflow.exceptions.FailLoudlyException;
+import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import com.palantir.javapoet.*;
@@ -16,10 +16,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
 
 import javax.lang.model.element.Modifier;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
+import java.util.*;
 import java.util.function.BooleanSupplier;
 
 public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
@@ -38,7 +35,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
         addRunMethod();
         addFailLoudlyMethod();
         addTriggerMethod();
-        addTransitionToMethods();
+        addUpdateStateMethod();
     }
 
     private void addWhenMethod() {
@@ -192,40 +189,121 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
         );
     }
 
-    private void addTransitionToMethods() {
-        var transitionToMethods = new TransitionToBuilder(names, new TransitionToCode() {
-            @Override
-            public CodeBlock enumCode() {
-                return CodeBlock.of("return $T.this.transitionTo(state);", names.stateMachineClassName());
-            }
+    private void addUpdateStateMethod() {
+        var validator = names.validator();
 
-            @Override
-            public CodeBlock internalData() {
-                return CodeBlock.of("");
-            }
+        MethodSpec.Builder updateStateMethodBuilder = MethodSpec
+                .methodBuilder("updateState")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(names.dataTypeName(), "nextStateData");
 
-            @Override
-            public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
-                return CodeBlock
-                        .builder()
-                        .add("return $T.this.transitionTo(", names.stateMachineClassName())
-                        .add(
-                                recordValidator.dataEmitter(fields)
-                                        .emit()
-                        )
-                        .add(");")
-                        .build();
-            }
-
-            @Override
-            public TypeName returnType() {
-                return ClassName.get(Command.class);
-            }
-        });
-
-        for(var method : transitionToMethods.build()) {
-            builder.addMethod(method);
+        if (validator instanceof RecordValidator rv && rv.supportsStateTransition()) {
+            updateStateMethodBuilder.addCode("""
+                            var data = $1T.fromRecord(currentState);
+                            data.attemptTransitionTo(nextStateData);
+                            \n""",
+                    names.dataTypeName()
+            );
+        } else if (validator instanceof EnumValidator ev && ev.supportsStateTransition()) {
+            updateStateMethodBuilder.addStatement("currentState.attemptTransitionTo(nextStateData)");
         }
+
+        // Create a new data instance or just assign the state manually depending on the type
+        if (validator instanceof EnumValidator) {
+            updateStateMethodBuilder
+                    .addStatement("var nextState = nextStateData");
+        } else if (validator instanceof RecordValidator rv) {
+            for (var field : rv.fields) {
+                updateStateMethodBuilder.addStatement(
+                        "var $1LData = $3T.get$2L(nextStateData)",
+                        field.name(),
+                        Util.ucfirst(field.name()),
+                        rv.wrappedClassName()
+                );
+            }
+
+            var code = CodeBlock.builder();
+
+            code.add("$[var nextState = new $T(\n", rv.originalTypeName());
+
+            var fields = rv.fields;
+            for (int i = 0; i < fields.size(); i++) {
+                var field = fields.get(i);
+                var fieldName = field.name();
+                var otherData = CodeBlock.of("$1LData", fieldName);
+
+                if (rv.nestedRecords.containsKey(field.value())) {
+                    var dataType = rv.nestedRecords.get(field.value());
+                    otherData = CodeBlock.of("$1T.toRecord($2LData)", dataType, fieldName);
+                } else if (rv.nestedInterfaces.containsKey(field.value())) {
+                    otherData = CodeBlock.of("$1LData.data()", fieldName);
+                }
+
+                code.add("$1LData == null ? currentState.$1L() : $2L", fieldName, otherData);
+                if (i + 1 != fields.size()) {
+                    code.add(",");
+                }
+                code.add("\n");
+            }
+
+            code.add(");$]\n");
+
+            updateStateMethodBuilder.addCode(code.build());
+        }
+
+        updateStateMethodBuilder
+                .addCode("""
+                                var nextToStates = generateToSubDataStates(nextState);
+
+                                if(! $1T.disjoint(failLoudlyCache, nextToStates)) {
+                                    var failLoudly = new $2T("State transition was requested to fail loudly");
+
+                                    throw new $3T(currentState, nextState, failLoudly);
+                                }
+
+                                var nextFromStates = generateFromSubDataStates(nextState);
+
+                                // Stop the current timers that aren't in our new state
+                                for(var currentData : currentSubData) {
+                                    if(!timerMap.containsKey(currentData)) {
+                                        continue; // No timer to stop
+                                    }
+
+                                    if(nextFromStates.contains(currentData)) {
+                                        continue; // This timer will continue on
+                                    }
+
+                                    var timer = timerMap.get(currentData);
+                                    timer.stop();
+                                    timer.reset();
+                                }
+
+                                // Start timers that aren't in our current state but are in our new
+                                for(var nextData : nextFromStates) {
+                                    if(!timerMap.containsKey(nextData)) {
+                                        continue; // No timer to start
+                                    }
+
+                                    var timer = timerMap.get(nextData);
+                                    timer.start(); // Start does nothing if the timer is already started
+                                }
+
+                                currentState = nextState;
+                                currentStatePublisher.set(currentState.toString());
+                                currentSubData = nextFromStates;
+
+                                runTransitionCommands(nextToStates);
+
+                                regenerateTransitionWhenCache();
+                                regenerateCommandCache();
+                                regenerateFailLoudlyCache();
+                                regenerateTimerCache();
+                                """,
+                        Collections.class,
+                        FailLoudlyException.class,
+                        InvalidStateTransition.class);
+
+        builder.addMethod(updateStateMethodBuilder.build());
     }
 
     @Override
