@@ -1,7 +1,7 @@
 plugins {
     id("java")
     id("maven-publish")
-    id("edu.wpi.first.wpilib.repositories.WPILibRepositoriesPlugin") version "2025.0"
+    id("org.wpilib.WPILibRepositoriesPlugin") version "2027.0.0"
 }
 
 group = "bot.den"
@@ -28,7 +28,6 @@ dependencies {
     implementation("org.wpilib.telemetry:telemetry-java:${wpilibVersion}")
     implementation("org.wpilib.tunables:tunables-java:${wpilibVersion}")
     implementation("org.wpilib.commandsv2:commandsv2-java:${wpilibVersion}")
-    implementation("org.wpilib.commandsv2:commandsv2-cpp:${wpilibVersion}")
 }
 
 java {
