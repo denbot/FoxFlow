@@ -548,17 +548,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addPollMethods() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("runPollCommand")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(Command.class)
-                .addCode("""
-                                return $T.run(this::poll).ignoringDisable(true);
-                                """,
-                        Commands.class)
-                .build()
-        );
-
         MethodSpec.Builder pollMethodBuilder = MethodSpec
                 .methodBuilder("poll")
                 .addModifiers(Modifier.PUBLIC)

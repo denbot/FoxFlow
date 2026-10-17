@@ -369,33 +369,8 @@ public class BasicEnumStateMachineTest {
     }
 
     @Test
-    void runPollCommand() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        // Set up our state machine transition
-        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
-
-        CommandScheduler.getInstance().run();
-
-        // Nothing should change yet
-        assertEquals(BasicEnum.START, machine.currentState());
-
-        CommandScheduler.getInstance().schedule(machine.runPollCommand());
-
-        // We shouldn't do anything when the command is initialized
-        assertEquals(BasicEnum.START, machine.currentState());
-
-        // This should actually run the poll command
-        CommandScheduler.getInstance().run();
-
-        // Verify our final state
-        assertEquals(BasicEnum.STATE_A, machine.currentState());
-    }
-
-    @Test
     void invalidTransitionCannotBeForced() {
         var machine = new BasicEnumStateMachine(BasicEnum.START);
-        CommandScheduler.getInstance().schedule(machine.runPollCommand());
 
         // This is an invalid transition
         Command command = machine.transitionTo(BasicEnum.END);
