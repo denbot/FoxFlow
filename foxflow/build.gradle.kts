@@ -21,6 +21,9 @@ tasks.test {
 }
 
 java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+
     if (project.hasProperty("version")) {
         withSourcesJar()
         withJavadocJar()
