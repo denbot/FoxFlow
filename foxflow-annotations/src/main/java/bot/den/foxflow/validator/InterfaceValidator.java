@@ -3,8 +3,8 @@ package bot.den.foxflow.validator;
 import bot.den.foxflow.*;
 import bot.den.foxflow.builders.FieldHelper;
 import com.palantir.javapoet.*;
-import edu.wpi.first.math.Pair;
-import edu.wpi.first.units.measure.Time;
+import org.wpilib.util.Pair;
+import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
 import java.util.ArrayList;

@@ -1,7 +1,7 @@
 plugins {
     id("java")
     id("maven-publish")
-    id("edu.wpi.first.wpilib.repositories.WPILibRepositoriesPlugin") version "2025.0"
+    id("org.wpilib.WPILibRepositoriesPlugin") version "2027.0.0"
 }
 
 group = "bot.den"
@@ -12,23 +12,28 @@ repositories {
 }
 wpilibRepositories.addAllReleaseRepositories(project)
 
-val wpilibVersion = "2026.1.1"
+val wpilibVersion = "2027.0.0-alpha-7"
 
 dependencies {
     implementation("com.palantir.javapoet:javapoet:0.9.0")
 
     implementation(project(":foxflow"))
 
-    implementation("edu.wpi.first.wpilibj:wpilibj-java:${wpilibVersion}")
-    implementation("edu.wpi.first.wpiutil:wpiutil-java:${wpilibVersion}")
-    implementation("edu.wpi.first.wpimath:wpimath-java:${wpilibVersion}")
-    implementation("edu.wpi.first.wpiunits:wpiunits-java:${wpilibVersion}")
-    implementation("edu.wpi.first.ntcore:ntcore-java:${wpilibVersion}")
-    implementation("edu.wpi.first.wpilibNewCommands:wpilibNewCommands-java:${wpilibVersion}")
-    implementation("edu.wpi.first.wpilibNewCommands:wpilibNewCommands-cpp:${wpilibVersion}")
+    implementation("org.wpilib.hal:hal-java:${wpilibVersion}")
+    implementation("org.wpilib.wpilibj:wpilibj-java:${wpilibVersion}")
+    implementation("org.wpilib.wpiutil:wpiutil-java:${wpilibVersion}")
+    implementation("org.wpilib.wpimath:wpimath-java:${wpilibVersion}")
+    implementation("org.wpilib.wpiunits:wpiunits-java:${wpilibVersion}")
+    implementation("org.wpilib.ntcore:ntcore-java:${wpilibVersion}")
+    implementation("org.wpilib.telemetry:telemetry-java:${wpilibVersion}")
+    implementation("org.wpilib.tunables:tunables-java:${wpilibVersion}")
+    implementation("org.wpilib.commandsv2:commandsv2-java:${wpilibVersion}")
 }
 
 java {
+    sourceCompatibility = JavaVersion.VERSION_25
+    targetCompatibility = JavaVersion.VERSION_25
+
     if (project.hasProperty("version")) {
         withSourcesJar()
     }

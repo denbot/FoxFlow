@@ -1,16 +1,17 @@
 package bot.den.foxflow.tests;
 
 import bot.den.foxflow.RobotState;
-import edu.wpi.first.hal.HAL;
-import edu.wpi.first.wpilibj.simulation.DriverStationSim;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
-import edu.wpi.first.wpilibj2.command.Commands;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
+import org.wpilib.command2.CommandScheduler;
+import org.wpilib.command2.Commands;
+import org.wpilib.hardware.hal.HAL;
+import org.wpilib.hardware.hal.RobotMode;
+import org.wpilib.simulation.DriverStationSim;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -21,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.*;
 public class RobotStateTest {
     @BeforeEach
     public void setup() {
-        assertTrue(HAL.initialize(500, 0));
+        assertTrue(HAL.initialize());
 
         // Always try to start with a disabled state on tests
         setDriverStationState(RobotState.DISABLED);
@@ -112,24 +113,20 @@ public class RobotStateTest {
         switch(state) {
             case DISABLED -> {
                 DriverStationSim.setEnabled(false);
-                DriverStationSim.setAutonomous(false);
-                DriverStationSim.setTest(false);
+                DriverStationSim.setRobotMode(RobotMode.UNKNOWN);
             }
             case AUTO -> {
-                DriverStationSim.setAutonomous(true);
-                DriverStationSim.setTest(false);
+                DriverStationSim.setRobotMode(RobotMode.AUTONOMOUS);
                 DriverStationSim.setEnabled(true);
                 DriverStationSim.setDsAttached(true);
             }
             case TELEOP -> {
-                DriverStationSim.setAutonomous(false);
-                DriverStationSim.setTest(false);
+                DriverStationSim.setRobotMode(RobotMode.TELEOPERATED);
                 DriverStationSim.setEnabled(true);
                 DriverStationSim.setDsAttached(true);
             }
             case TEST -> {
-                DriverStationSim.setTest(true);
-                DriverStationSim.setAutonomous(false);
+                DriverStationSim.setRobotMode(RobotMode.UTILITY);
                 DriverStationSim.setEnabled(true);
                 DriverStationSim.setDsAttached(true);
             }

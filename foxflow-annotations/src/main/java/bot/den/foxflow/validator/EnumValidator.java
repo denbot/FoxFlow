@@ -8,8 +8,8 @@ import bot.den.foxflow.builders.FieldHelper;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.ParameterizedTypeName;
 import com.palantir.javapoet.TypeName;
-import edu.wpi.first.math.Pair;
-import edu.wpi.first.units.measure.Time;
+import org.wpilib.util.Pair;
+import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Element;
 import java.util.Set;

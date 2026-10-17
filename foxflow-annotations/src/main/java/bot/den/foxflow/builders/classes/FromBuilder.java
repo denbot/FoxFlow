@@ -9,9 +9,9 @@ import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.FieldSpec;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;
-import edu.wpi.first.wpilibj.event.EventLoop;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.command2.CommandScheduler;
+import org.wpilib.command2.button.Trigger;
+import org.wpilib.event.EventLoop;
 
 import javax.lang.model.element.Modifier;
 

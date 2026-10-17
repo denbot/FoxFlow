@@ -4,7 +4,7 @@ import bot.den.foxflow.*;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.classes.RecordDataBuilder;
 import com.palantir.javapoet.*;
-import edu.wpi.first.math.Pair;
+import org.wpilib.util.Pair;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;

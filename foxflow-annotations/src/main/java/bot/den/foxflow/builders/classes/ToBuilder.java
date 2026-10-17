@@ -5,8 +5,8 @@ import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;
-import edu.wpi.first.units.Units;
-import edu.wpi.first.units.measure.Time;
+import org.wpilib.units.Units;
+import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
 import java.util.function.BooleanSupplier;

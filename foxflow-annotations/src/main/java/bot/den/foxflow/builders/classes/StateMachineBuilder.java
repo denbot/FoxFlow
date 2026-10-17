@@ -14,15 +14,16 @@ import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.*;
 import com.palantir.javapoet.MethodSpec.Builder;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StringPublisher;
-import edu.wpi.first.networktables.StringTopic;
-import edu.wpi.first.wpilibj.DSControlWord;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.command2.Command;
+import org.wpilib.command2.CommandScheduler;
+import org.wpilib.command2.Commands;
+import org.wpilib.command2.button.Trigger;
+import org.wpilib.driverstation.internal.DriverStationBackend;
+import org.wpilib.hardware.hal.ControlWord;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.networktables.StringPublisher;
+import org.wpilib.networktables.StringTopic;
+import org.wpilib.system.Timer;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
@@ -271,7 +272,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         var timerMapType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 names.dataTypeName(),
-                ClassName.get(edu.wpi.first.wpilibj.Timer.class)
+                ClassName.get(org.wpilib.system.Timer.class)
         );
 
         builder.addField(FieldSpec
@@ -335,9 +336,9 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         }
 
         builder.addField(FieldSpec
-                .builder(ClassName.get(DSControlWord.class), "controlWord")
+                .builder(ClassName.get(ControlWord.class), "controlWord")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", DSControlWord.class)
+                .initializer("new $T()", ControlWord.class)
                 .build()
         );
     }
@@ -571,15 +572,15 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
             pollMethodBuilder.addCode(
                     """
-                            this.controlWord.refresh();
+                            $3T.refreshControlWordFromCache(controlWord);
                             $1T nextRobotState = null;
-                            if(currentState.robotState() != RobotState.DISABLED && this.controlWord.isDisabled()) {
+                            if(currentState.robotState() != RobotState.DISABLED && !this.controlWord.isEnabled()) {
                                 nextRobotState = new $2T(RobotState.DISABLED);
                             } else if(currentState.robotState() != RobotState.AUTO && this.controlWord.isAutonomousEnabled()) {
                                 nextRobotState = new $2T(RobotState.AUTO);
                             } else if(currentState.robotState() != RobotState.TELEOP && this.controlWord.isTeleopEnabled()) {
                                 nextRobotState = new $2T(RobotState.TELEOP);
-                            } else if(currentState.robotState() != RobotState.TEST && this.controlWord.isTest()) {
+                            } else if(currentState.robotState() != RobotState.TEST && this.controlWord.isUtility()) {
                                 nextRobotState = new $2T(RobotState.TEST);
                             }
                             
@@ -590,7 +591,9 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                             }
                             """,
                     names.dataTypeName(),
-                    rv.fieldToInnerClass.get(List.of(robotFieldOption.get())));
+                    rv.fieldToInnerClass.get(List.of(robotFieldOption.get())),
+                    DriverStationBackend.class
+                    );
         }
 
         pollMethodBuilder.addCode(

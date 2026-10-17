@@ -2,27 +2,26 @@ package bot.den.foxflow.tests;
 
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
-import edu.wpi.first.hal.HAL;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.wpilibj.event.EventLoop;
-import edu.wpi.first.wpilibj.simulation.SimHooks;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.wpilib.command2.Command;
+import org.wpilib.command2.CommandScheduler;
+import org.wpilib.command2.Commands;
+import org.wpilib.command2.button.Trigger;
+import org.wpilib.event.EventLoop;
+import org.wpilib.hardware.hal.HAL;
+import org.wpilib.simulation.SimHooks;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static edu.wpi.first.units.Units.Seconds;
 import static org.junit.jupiter.api.Assertions.*;
+import static org.wpilib.units.Units.Seconds;
 
 public class BasicEnumStateMachineTest {
     @BeforeEach
     public void setup() {
-        assertTrue(HAL.initialize(500, 0));
+        assertTrue(HAL.initialize());
 
         // Just for our timing tests, but it's a good thing to verify
         assertFalse(SimHooks.isTimingPaused());
