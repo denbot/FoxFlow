@@ -18,6 +18,8 @@ import org.wpilib.command2.Command;
 import org.wpilib.command2.CommandScheduler;
 import org.wpilib.command2.Commands;
 import org.wpilib.command2.button.Trigger;
+import org.wpilib.driverstation.internal.DriverStationBackend;
+import org.wpilib.hardware.hal.ControlWord;
 import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.networktables.StringPublisher;
 import org.wpilib.networktables.StringTopic;
@@ -333,13 +335,12 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
             return;
         }
 
-        // TODO DSControlWord no longer exists, so we need to figure out how this works for 2027
-//        builder.addField(FieldSpec
-//                .builder(ClassName.get(DSControlWord.class), "controlWord")
-//                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-//                .initializer("new $T()", DSControlWord.class)
-//                .build()
-//        );
+        builder.addField(FieldSpec
+                .builder(ClassName.get(ControlWord.class), "controlWord")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T()", ControlWord.class)
+                .build()
+        );
     }
 
     private void addConstructors() {
@@ -571,15 +572,15 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
             pollMethodBuilder.addCode(
                     """
-                            this.controlWord.refresh();
+                            $3T.refreshControlWordFromCache(controlWord);
                             $1T nextRobotState = null;
-                            if(currentState.robotState() != RobotState.DISABLED && this.controlWord.isDisabled()) {
+                            if(currentState.robotState() != RobotState.DISABLED && !this.controlWord.isEnabled()) {
                                 nextRobotState = new $2T(RobotState.DISABLED);
                             } else if(currentState.robotState() != RobotState.AUTO && this.controlWord.isAutonomousEnabled()) {
                                 nextRobotState = new $2T(RobotState.AUTO);
                             } else if(currentState.robotState() != RobotState.TELEOP && this.controlWord.isTeleopEnabled()) {
                                 nextRobotState = new $2T(RobotState.TELEOP);
-                            } else if(currentState.robotState() != RobotState.TEST && this.controlWord.isTest()) {
+                            } else if(currentState.robotState() != RobotState.TEST && this.controlWord.isUtility()) {
                                 nextRobotState = new $2T(RobotState.TEST);
                             }
                             
@@ -590,7 +591,9 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                             }
                             """,
                     names.dataTypeName(),
-                    rv.fieldToInnerClass.get(List.of(robotFieldOption.get())));
+                    rv.fieldToInnerClass.get(List.of(robotFieldOption.get())),
+                    DriverStationBackend.class
+                    );
         }
 
         pollMethodBuilder.addCode(

@@ -1,11 +1,11 @@
 package bot.den.foxflow.tests;
 
-import edu.wpi.first.hal.HAL;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
-import edu.wpi.first.wpilibj2.command.Commands;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.wpilib.command2.CommandScheduler;
+import org.wpilib.command2.Commands;
+import org.wpilib.hardware.hal.HAL;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -16,7 +16,7 @@ public class NestedRecordOuterTest {
 
     @BeforeEach
     public void setup() {
-        assertTrue(HAL.initialize(500, 0));
+        assertTrue(HAL.initialize());
 
         this.machine = new NestedRecordOuterStateMachine(
                 new NestedRecordOuter.NestedRecord(MultiStateEnum.A)

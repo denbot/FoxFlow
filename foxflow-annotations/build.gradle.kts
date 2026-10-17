@@ -19,6 +19,7 @@ dependencies {
 
     implementation(project(":foxflow"))
 
+    implementation("org.wpilib.hal:hal-java:${wpilibVersion}")
     implementation("org.wpilib.wpilibj:wpilibj-java:${wpilibVersion}")
     implementation("org.wpilib.wpiutil:wpiutil-java:${wpilibVersion}")
     implementation("org.wpilib.wpimath:wpimath-java:${wpilibVersion}")
