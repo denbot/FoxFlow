@@ -9,11 +9,11 @@ import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import com.palantir.javapoet.*;
-import edu.wpi.first.units.measure.Time;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj.event.EventLoop;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.command2.Command;
+import org.wpilib.command2.button.Trigger;
+import org.wpilib.event.EventLoop;
+import org.wpilib.system.Timer;
+import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
 import java.util.*;

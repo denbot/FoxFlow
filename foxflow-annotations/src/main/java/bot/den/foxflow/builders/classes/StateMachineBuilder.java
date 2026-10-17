@@ -14,15 +14,14 @@ import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.*;
 import com.palantir.javapoet.MethodSpec.Builder;
-import edu.wpi.first.networktables.NetworkTableInstance;
-import edu.wpi.first.networktables.StringPublisher;
-import edu.wpi.first.networktables.StringTopic;
-import edu.wpi.first.wpilibj.DSControlWord;
-import edu.wpi.first.wpilibj.Timer;
-import edu.wpi.first.wpilibj2.command.Command;
-import edu.wpi.first.wpilibj2.command.CommandScheduler;
-import edu.wpi.first.wpilibj2.command.Commands;
-import edu.wpi.first.wpilibj2.command.button.Trigger;
+import org.wpilib.command2.Command;
+import org.wpilib.command2.CommandScheduler;
+import org.wpilib.command2.Commands;
+import org.wpilib.command2.button.Trigger;
+import org.wpilib.networktables.NetworkTableInstance;
+import org.wpilib.networktables.StringPublisher;
+import org.wpilib.networktables.StringTopic;
+import org.wpilib.system.Timer;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
@@ -271,7 +270,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         var timerMapType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 names.dataTypeName(),
-                ClassName.get(edu.wpi.first.wpilibj.Timer.class)
+                ClassName.get(org.wpilib.system.Timer.class)
         );
 
         builder.addField(FieldSpec
@@ -334,12 +333,13 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
             return;
         }
 
-        builder.addField(FieldSpec
-                .builder(ClassName.get(DSControlWord.class), "controlWord")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T()", DSControlWord.class)
-                .build()
-        );
+        // TODO DSControlWord no longer exists, so we need to figure out how this works for 2027
+//        builder.addField(FieldSpec
+//                .builder(ClassName.get(DSControlWord.class), "controlWord")
+//                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+//                .initializer("new $T()", DSControlWord.class)
+//                .build()
+//        );
     }
 
     private void addConstructors() {
