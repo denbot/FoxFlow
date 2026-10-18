@@ -1,3 +1,5 @@
+import javax.tools.ToolProvider
+
 plugins {
     id "java"
     id "application"
@@ -64,11 +66,24 @@ sourceSets {
     test {
         java.srcDirs = []
     }
-    commandsSuites.each { suite ->
-        "test${suite}" {
-            java.srcDirs = ['src/test/java', "src/test${suite}/java"]
-            compileClasspath += sourceSets.main.output
-            runtimeClasspath += sourceSets.main.output
+}
+
+testing {
+    suites {
+        commandsSuites.each { suite ->
+            create("test${suite}", JvmTestSuite) {
+                useJUnitJupiter('5.10.1')
+                sources {
+                    java.srcDirs = ['src/test/java', "src/test${suite}/java"]
+                    compileClasspath += sourceSets.main.output
+                    runtimeClasspath += sourceSets.main.output
+                }
+                targets.configureEach {
+                    testTask.configure {
+                        description = "Runs the tests against the ${suite} commands suite."
+                    }
+                }
+            }
         }
     }
 }
@@ -139,7 +154,7 @@ commandsSuites.each { suite ->
                 }
             }
 
-            def javac = javax.tools.ToolProvider.systemJavaCompiler
+            def javac = ToolProvider.systemJavaCompiler
             def args = ['-proc:only', '-processorpath', processorPath.asPath, '-cp', classpath.asPath, '-s', out.path] + classNames
             if (javac.run(null, null, null, args as String[]) != 0) {
                 throw new GradleException("Annotation processing failed for test${suite}")
@@ -154,14 +169,7 @@ tasks.withType(Test).configureEach {
     systemProperty 'junit.jupiter.extensions.autodetection.enabled', 'true'
 }
 
-def commandsSuiteTasks = commandsSuites.collect { suite ->
-    tasks.register("test${suite}", Test) {
-        description = "Runs the tests against the ${suite} commands suite."
-        group = 'verification'
-        testClassesDirs = sourceSets."test${suite}".output.classesDirs
-        classpath = sourceSets."test${suite}".runtimeClasspath
-    }
-}
+def commandsSuiteTasks = commandsSuites.collect { suite -> tasks.named("test${suite}", Test) }
 
 tasks.named('test') {
     dependsOn commandsSuiteTasks
