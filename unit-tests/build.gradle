@@ -55,6 +55,31 @@ wpi.java.runSimWithDebugJni = false
 // Set this to true to enable desktop support.
 def includeDesktopSupport = true
 
+// We have multiple test suits that run against different libraries. For example, you can use testV2Implementation
+// in the dependencies to add testImplementation directives only for the testV2 module.
+def commandsSuites = ['None', 'V2']
+
+sourceSets {
+    // The shared sources are compiled by each suite instead
+    test {
+        java.srcDirs = []
+    }
+    commandsSuites.each { suite ->
+        "test${suite}" {
+            java.srcDirs = ['src/test/java', "src/test${suite}/java"]
+            compileClasspath += sourceSets.main.output
+            runtimeClasspath += sourceSets.main.output
+        }
+    }
+}
+
+configurations {
+    commandsSuites.each { suite ->
+        named("test${suite}Implementation") { extendsFrom testImplementation }
+        named("test${suite}RuntimeOnly") { extendsFrom testRuntimeOnly }
+    }
+}
+
 // Defining my dependencies. In this case, WPILib (+ friends), and vendor libraries.
 // Also defines JUnit 5.
 dependencies {
@@ -79,13 +104,67 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
+    testV2Implementation "org.wpilib.commandsv2:commandsv2-java:${wpi.versions.wpilibVersion.get()}"
+
     implementation(project(":foxflow"))
     annotationProcessor(project(":foxflow-annotations"))
 }
 
-test {
+tasks.named('compileJava') {
+    options.compilerArgs.add '-proc:none'
+}
+
+commandsSuites.each { suite ->
+    def sourceSet = sourceSets.named("test${suite}").get()
+    def fixtureClasses = sourceSets.main.output.classesDirs
+    def classpath = sourceSet.compileClasspath
+    def processorPath = configurations.annotationProcessor
+    def outDir = layout.buildDirectory.dir("generated/fixtures/test${suite}")
+
+    def generate = tasks.register("generateTest${suite}Machines") {
+        description = "Generates the fixture state machines for the ${suite} commands suite."
+        inputs.files(fixtureClasses)
+        inputs.files(classpath)
+        inputs.files(processorPath)
+        outputs.dir(outDir)
+        doLast {
+            def out = outDir.get().asFile
+            out.deleteDir()
+            out.mkdirs()
+
+            def classNames = []
+            fixtureClasses.asFileTree.matching { include '**/*.class'; exclude '**/*$*' }.visit { details ->
+                if (!details.directory) {
+                    classNames << details.relativePath.pathString.replace('.class', '').replace('/', '.')
+                }
+            }
+
+            def javac = javax.tools.ToolProvider.systemJavaCompiler
+            def args = ['-proc:only', '-processorpath', processorPath.asPath, '-cp', classpath.asPath, '-s', out.path] + classNames
+            if (javac.run(null, null, null, args as String[]) != 0) {
+                throw new GradleException("Annotation processing failed for test${suite}")
+            }
+        }
+    }
+    sourceSet.java.srcDir(generate)
+}
+
+tasks.withType(Test).configureEach {
     useJUnitPlatform()
     systemProperty 'junit.jupiter.extensions.autodetection.enabled', 'true'
+}
+
+def commandsSuiteTasks = commandsSuites.collect { suite ->
+    tasks.register("test${suite}", Test) {
+        description = "Runs the tests against the ${suite} commands suite."
+        group = 'verification'
+        testClassesDirs = sourceSets."test${suite}".output.classesDirs
+        classpath = sourceSets."test${suite}".runtimeClasspath
+    }
+}
+
+tasks.named('test') {
+    dependsOn commandsSuiteTasks
 }
 
 // Simulation configuration (e.g. environment variables).
@@ -97,6 +176,7 @@ application.mainClass = ROBOT_MAIN_CLASS
 deployArtifact.configureApplication(application)
 wpi.java.configureApplication(application)
 wpi.java.configureTestTasks(test)
+commandsSuiteTasks.each { wpi.java.configureTestTasks(it.get()) }
 
 jar {
     from('src') { into 'backup/src' }
