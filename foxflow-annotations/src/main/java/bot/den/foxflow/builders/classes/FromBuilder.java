@@ -4,13 +4,12 @@ import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
+import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.validator.RecordValidator;
 import com.palantir.javapoet.CodeBlock;
 import com.palantir.javapoet.FieldSpec;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;
-import org.wpilib.command2.CommandScheduler;
-import org.wpilib.command2.button.Trigger;
 import org.wpilib.event.EventLoop;
 
 import javax.lang.model.element.Modifier;
@@ -145,22 +144,24 @@ public class FromBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addTriggerMethods() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("trigger")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(Trigger.class)
-                .addStatement("return this.trigger($T.getInstance().getDefaultButtonLoop())", CommandScheduler.class)
-                .build()
-        );
+        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+            builder.addMethod(MethodSpec
+                    .methodBuilder("trigger")
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(commandsV2.trigger())
+                    .addStatement("return this.trigger($T.getInstance().getDefaultButtonLoop())", commandsV2.commandScheduler())
+                    .build()
+            );
 
-        builder.addMethod(MethodSpec
-                .methodBuilder("trigger")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(Trigger.class)
-                .addParameter(EventLoop.class, "eventLoop")
-                .addStatement("return manager.trigger(eventLoop, targetState)")
-                .build()
-        );
+            builder.addMethod(MethodSpec
+                    .methodBuilder("trigger")
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(commandsV2.trigger())
+                    .addParameter(EventLoop.class, "eventLoop")
+                    .addStatement("return manager.trigger(eventLoop, targetState)")
+                    .build()
+            );
+        }
     }
 
     @Override

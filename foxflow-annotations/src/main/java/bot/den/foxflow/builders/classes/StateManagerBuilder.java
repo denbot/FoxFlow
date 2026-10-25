@@ -3,14 +3,13 @@ package bot.den.foxflow.builders.classes;
 import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
+import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import com.palantir.javapoet.*;
-import org.wpilib.command2.Command;
-import org.wpilib.command2.button.Trigger;
 import org.wpilib.event.EventLoop;
 import org.wpilib.system.Timer;
 import org.wpilib.units.measure.Time;
@@ -108,36 +107,38 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addRunMethod() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("run")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(names.dataTypeName(), "fromState")
-                .addParameter(names.dataTypeName(), "toState")
-                .addParameter(Command.class, "command")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                $1T.this.verifyToStateEnabled(toState);
-                                
-                                if(!$1T.this.transitionCommandMap.containsKey(fromState)) {
-                                    $1T.this.transitionCommandMap.put(fromState, new $2T<>());
-                                }
-                                
-                                var fromStateMap = $1T.this.transitionCommandMap.get(fromState);
-                                if(!fromStateMap.containsKey(toState)) {
-                                    fromStateMap.put(toState, new $3T<>());
-                                }
-                                
-                                fromStateMap.get(toState).add(command);
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateCommandCache();
-                                }
-                                """,
-                        names.stateMachineClassName(),
-                        HashMap.class,
-                        ArrayList.class)
-                .build()
-        );
+        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+            builder.addMethod(MethodSpec
+                    .methodBuilder("run")
+                    .addModifiers(Modifier.PUBLIC)
+                    .addParameter(names.dataTypeName(), "fromState")
+                    .addParameter(names.dataTypeName(), "toState")
+                    .addParameter(commandsV2.command(), "command")
+                    .addCode("""
+                                    $1T.this.verifyFromStateEnabled(fromState);
+                                    $1T.this.verifyToStateEnabled(toState);
+                                    
+                                    if(!$1T.this.transitionCommandMap.containsKey(fromState)) {
+                                        $1T.this.transitionCommandMap.put(fromState, new $2T<>());
+                                    }
+                                    
+                                    var fromStateMap = $1T.this.transitionCommandMap.get(fromState);
+                                    if(!fromStateMap.containsKey(toState)) {
+                                        fromStateMap.put(toState, new $3T<>());
+                                    }
+                                    
+                                    fromStateMap.get(toState).add(command);
+                                    
+                                    if($1T.this.currentSubData.contains(fromState)) {
+                                        $1T.this.regenerateCommandCache();
+                                    }
+                                    """,
+                            names.stateMachineClassName(),
+                            HashMap.class,
+                            ArrayList.class)
+                    .build()
+            );
+        }
     }
 
     private void addFailLoudlyMethod() {
@@ -167,26 +168,28 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addTriggerMethod() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("trigger")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(Trigger.class)
-                .addParameter(EventLoop.class, "eventLoop")
-                .addParameter(names.dataTypeName(), "state")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(state);
-                                
-                                if(! $1T.this.triggerMap.containsKey(state)) {
-                                    var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
-                                    triggerMap.put(state, trigger);
-                                }
-                                
-                                return triggerMap.get(state);
-                                """,
-                        names.stateMachineClassName()
-                )
-                .build()
-        );
+        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+            builder.addMethod(MethodSpec
+                    .methodBuilder("trigger")
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(commandsV2.trigger())
+                    .addParameter(EventLoop.class, "eventLoop")
+                    .addParameter(names.dataTypeName(), "state")
+                    .addCode("""
+                                    $1T.this.verifyFromStateEnabled(state);
+                                    
+                                    if(! $1T.this.triggerMap.containsKey(state)) {
+                                        var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
+                                        triggerMap.put(state, trigger);
+                                    }
+                                    
+                                    return triggerMap.get(state);
+                                    """,
+                            names.stateMachineClassName()
+                    )
+                    .build()
+            );
+        }
     }
 
     private void addUpdateStateMethod() {
