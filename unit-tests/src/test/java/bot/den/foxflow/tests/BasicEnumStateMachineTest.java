@@ -5,11 +5,6 @@ import bot.den.foxflow.exceptions.InvalidStateTransition;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.wpilib.command2.Command;
-import org.wpilib.command2.CommandScheduler;
-import org.wpilib.command2.Commands;
-import org.wpilib.command2.button.Trigger;
-import org.wpilib.event.EventLoop;
 import org.wpilib.hardware.hal.HAL;
 import org.wpilib.simulation.SimHooks;
 
@@ -29,9 +24,7 @@ public class BasicEnumStateMachineTest {
 
     @AfterEach
     public void cleanup() {
-        // This method runs after each test to reset the scheduler state
-        CommandScheduler.getInstance().cancelAll();
-        CommandScheduler.getInstance().run(); // Call run() to execute end() methods
+        Actions.reset();
     }
 
     @Test
@@ -101,7 +94,7 @@ public class BasicEnumStateMachineTest {
                 .to(BasicEnum.STATE_A)
                 .transitionAlways()
                 .run(
-                        Commands.runOnce(() -> test.set(true)).ignoringDisable(true)
+                        Actions.runOnce(() -> test.set(true))
                 );
 
         // Test our initial state
@@ -129,7 +122,7 @@ public class BasicEnumStateMachineTest {
                 .to(BasicEnum.STATE_A)
                 .transitionAlways()
                 .run(
-                        Commands.run(() -> test.set(true)).ignoringDisable(true)
+                        Actions.run(() -> test.set(true))
                 );
 
         // Test our initial state
@@ -144,7 +137,7 @@ public class BasicEnumStateMachineTest {
         // The run command runs in the execute loop and therefore needs the scheduler
         assertFalse(test.get());
 
-        CommandScheduler.getInstance().run();
+        Actions.poll();
 
         // Now it should be true
         assertTrue(test.get());
@@ -190,111 +183,10 @@ public class BasicEnumStateMachineTest {
     }
 
     @Test
-    void basicTrigger() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        // Create our trigger
-        Trigger trigger = machine.state(BasicEnum.STATE_A).trigger();
-
-        // Ensure `poll` will force a state transition
-        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
-
-        assertFalse(trigger.getAsBoolean());
-
-        machine.poll();
-
-        assertTrue(trigger.getAsBoolean());
-    }
-
-    @Test
-    void triggerDefaultEventLoop() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        final AtomicBoolean test = new AtomicBoolean(false);
-
-        // Create our trigger
-        machine
-                .state(BasicEnum.STATE_A)
-                .trigger()
-                .onTrue(
-                        Commands.runOnce(() -> test.set(true)).ignoringDisable(true)
-                );
-
-        // Ensure `poll` will force a state transition
-        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
-
-        machine.poll();
-        CommandScheduler.getInstance().run();
-
-        assertTrue(test.get());
-    }
-
-    @Test
-    void triggerCustomEventLoop() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        final AtomicBoolean test = new AtomicBoolean(false);
-
-        // Custom event loop
-        EventLoop eventLoop = new EventLoop();
-
-        // Create our trigger
-        machine
-                .state(BasicEnum.STATE_A)
-                .trigger(eventLoop)
-                .onTrue(
-                        Commands.runOnce(() -> test.set(true)).ignoringDisable(true)
-                );
-
-        // Ensure `poll` will force a state transition
-        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
-
-        machine.poll();
-        CommandScheduler.getInstance().run();
-
-        // The default loop shouldn't have done anything
-        assertFalse(test.get());
-
-        // But our event loop poll will
-        eventLoop.poll();
-
-        assertTrue(test.get());
-    }
-
-    @Test
-    void triggerOnlyRunsOnChange() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        final AtomicBoolean test = new AtomicBoolean(false);
-
-        // Create our trigger
-        machine
-                .state(BasicEnum.START)
-                .trigger()
-                .onTrue(
-                        Commands.runOnce(() -> test.set(true)).ignoringDisable(true)
-                );
-
-        // There should be no state to transition, but we still need to make sure it doesn't affect the outcome
-        machine.poll();
-        CommandScheduler.getInstance().run();
-
-        // The trigger did not run because START was the original state
-        assertFalse(test.get());
-    }
-
-    @Test
     void transitionToCommand() {
         var machine = new BasicEnumStateMachine(BasicEnum.START);
 
-        // Create our command
-        Command command = machine.transitionTo(BasicEnum.STATE_A);
-
-        // Ensure creating the command didn't do anything
-        assertEquals(BasicEnum.START, machine.currentState());
-
-        // Scheduling a command calls the initialize method, which should be what does the state transition
-        CommandScheduler.getInstance().schedule(command);
+        machine.transitionTo(BasicEnum.STATE_A);
 
         assertEquals(BasicEnum.STATE_A, machine.currentState());
     }
@@ -303,30 +195,17 @@ public class BasicEnumStateMachineTest {
     void transitionToCommandOnlyRunsOnce() {
         var machine = new BasicEnumStateMachine(BasicEnum.START);
 
-        // Create our command
-        Command command = machine.transitionTo(BasicEnum.STATE_A);
-
         // Always jump from A to B on a machine.poll() call
         machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_B).transitionAlways();
 
-        // Ensure creating the command didn't do anything
-        assertEquals(BasicEnum.START, machine.currentState());
+        // Transition to STATE_A immediately
+        machine.transitionTo(BasicEnum.STATE_A);
 
-        // Scheduling a command calls the initialize method, which should be what does the state transition
-        CommandScheduler.getInstance().schedule(command);
-
-        // The command is still scheduled as the command scheduler hasn't run to clear that state yet
-        assertTrue(command.isScheduled());
-
-        // Verify we're still at the A state
+        // Verify we're at the A state
         assertEquals(BasicEnum.STATE_A, machine.currentState());
 
         // When we poll, the state should jump to B due to the always call above
         machine.poll();
-        assertEquals(BasicEnum.STATE_B, machine.currentState());
-
-        // For extra assurance, we make sure running the scheduler didn't change the state
-        CommandScheduler.getInstance().run();
         assertEquals(BasicEnum.STATE_B, machine.currentState());
     }
 
@@ -338,7 +217,7 @@ public class BasicEnumStateMachineTest {
                 .state(BasicEnum.START)
                 .to(BasicEnum.STATE_A)
                 .transitionAlways()
-                .run(machine.transitionTo(BasicEnum.STATE_B));
+                .run(Actions.runOnce(() -> machine.transitionTo(BasicEnum.STATE_B)));
 
         // Ensure creating the command didn't do anything
         assertEquals(BasicEnum.START, machine.currentState());
@@ -372,10 +251,7 @@ public class BasicEnumStateMachineTest {
     void invalidTransitionCannotBeForced() {
         var machine = new BasicEnumStateMachine(BasicEnum.START);
 
-        // This is an invalid transition
-        Command command = machine.transitionTo(BasicEnum.END);
-
-        assertThrows(InvalidStateTransition.class, () -> CommandScheduler.getInstance().schedule(command));
+        assertThrows(InvalidStateTransition.class, () -> machine.transitionTo(BasicEnum.END));
 
         assertEquals(BasicEnum.START, machine.currentState());
     }
@@ -407,12 +283,12 @@ public class BasicEnumStateMachineTest {
                 .state(BasicEnum.START)
                 .to(BasicEnum.STATE_A)
                 .transitionAlways()
-                .run(Commands.runOnce(() -> first.set(true)).ignoringDisable(true));
+                .run(Actions.runOnce(() -> first.set(true)));
 
         machine
                 .state(BasicEnum.START)
                 .to(BasicEnum.STATE_A)
-                .run(Commands.runOnce(() -> second.set(true)).ignoringDisable(true));
+                .run(Actions.runOnce(() -> second.set(true)));
 
         machine.poll();
 
@@ -490,8 +366,7 @@ public class BasicEnumStateMachineTest {
         assertFalse(trigger.getAsBoolean());
 
         // Transition back to START
-        var command = machine.transitionTo(BasicEnum.START);
-        CommandScheduler.getInstance().schedule(command);
+        machine.transitionTo(BasicEnum.START);
 
         assertTrue(trigger.getAsBoolean());
     }
@@ -611,7 +486,7 @@ public class BasicEnumStateMachineTest {
         var subscriber = machine.currentStateTopic.subscribe(BasicEnum.STATE_D.name());
 
         assertEquals(BasicEnum.START.toString(), subscriber.get());
-        CommandScheduler.getInstance().schedule(machine.transitionTo(BasicEnum.STATE_A));
+        machine.transitionTo(BasicEnum.STATE_A);
 
         assertEquals(BasicEnum.STATE_A.toString(), subscriber.get());
     }

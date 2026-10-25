@@ -509,17 +509,11 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         var transitionToBuilder = new TransitionToBuilder(names, new TransitionToCode() {
             @Override
             public CodeBlock enumCode() {
-                if(StateMachineBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
-                    return CodeBlock.of("return $T.runOnce(() -> manager.updateState(state)).ignoringDisable(true);", commandsV2.commands());
-                }
-                return CodeBlock.of("");
+                return CodeBlock.of("manager.updateState(state);");
             }
 
             @Override
             public CodeBlock internalData() {
-                if(StateMachineBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
-                    return CodeBlock.of("return $T.runOnce(() -> manager.updateState(state)).ignoringDisable(true);", commandsV2.commands());
-                }
                 return CodeBlock.of("");
             }
 
@@ -527,7 +521,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
             public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
                 return CodeBlock
                         .builder()
-                        .add("return transitionTo(")
+                        .add("manager.updateState(")
                         .add(
                                 recordValidator.dataEmitter(fields)
                                         .withConstructor()
@@ -540,9 +534,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
             @Override
             public TypeName returnType() {
-                if(StateMachineBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
-                    return commandsV2.command();
-                }
                 return TypeName.VOID;
             }
         });
