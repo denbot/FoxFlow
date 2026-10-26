@@ -7,8 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
-import org.wpilib.command2.CommandScheduler;
-import org.wpilib.command2.Commands;
 import org.wpilib.hardware.hal.HAL;
 import org.wpilib.hardware.hal.RobotMode;
 import org.wpilib.simulation.DriverStationSim;
@@ -30,9 +28,7 @@ public class RobotStateTest {
 
     @AfterEach
     public void cleanup() {
-        // This method runs after each test to reset the scheduler state
-        CommandScheduler.getInstance().cancelAll();
-        CommandScheduler.getInstance().run(); // Call run() to execute end() methods
+        Actions.reset();
     }
 
     @ParameterizedTest
@@ -92,7 +88,7 @@ public class RobotStateTest {
 
         var machine = new RobotRecordStateMachine(MultiStateEnum.A);
 
-        machine.state(MultiStateEnum.A).to(RobotState.AUTO).run(Commands.runOnce(() -> test.set(true)).ignoringDisable(true));
+        machine.state(MultiStateEnum.A).to(RobotState.AUTO).run(Actions.runOnce(() -> test.set(true)));
 
         setDriverStationState(RobotState.AUTO);
         machine.poll();

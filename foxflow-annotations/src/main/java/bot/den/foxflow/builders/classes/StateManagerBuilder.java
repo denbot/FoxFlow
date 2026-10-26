@@ -3,14 +3,13 @@ package bot.den.foxflow.builders.classes;
 import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
+import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import com.palantir.javapoet.*;
-import org.wpilib.command2.Command;
-import org.wpilib.command2.button.Trigger;
 import org.wpilib.event.EventLoop;
 import org.wpilib.system.Timer;
 import org.wpilib.units.measure.Time;
@@ -113,7 +112,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(names.dataTypeName(), "fromState")
                 .addParameter(names.dataTypeName(), "toState")
-                .addParameter(Command.class, "command")
+                .addParameter(names.commandTypeName(), "command")
                 .addCode("""
                                 $1T.this.verifyFromStateEnabled(fromState);
                                 $1T.this.verifyToStateEnabled(toState);
@@ -167,26 +166,28 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addTriggerMethod() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("trigger")
-                .addModifiers(Modifier.PUBLIC)
-                .returns(Trigger.class)
-                .addParameter(EventLoop.class, "eventLoop")
-                .addParameter(names.dataTypeName(), "state")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(state);
-                                
-                                if(! $1T.this.triggerMap.containsKey(state)) {
-                                    var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
-                                    triggerMap.put(state, trigger);
-                                }
-                                
-                                return triggerMap.get(state);
-                                """,
-                        names.stateMachineClassName()
-                )
-                .build()
-        );
+        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+            builder.addMethod(MethodSpec
+                    .methodBuilder("trigger")
+                    .addModifiers(Modifier.PUBLIC)
+                    .returns(commandsV2.trigger())
+                    .addParameter(EventLoop.class, "eventLoop")
+                    .addParameter(names.dataTypeName(), "state")
+                    .addCode("""
+                                    $1T.this.verifyFromStateEnabled(state);
+                                    
+                                    if(! $1T.this.triggerMap.containsKey(state)) {
+                                        var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
+                                        triggerMap.put(state, trigger);
+                                    }
+                                    
+                                    return triggerMap.get(state);
+                                    """,
+                            names.stateMachineClassName()
+                    )
+                    .build()
+            );
+        }
     }
 
     private void addUpdateStateMethod() {

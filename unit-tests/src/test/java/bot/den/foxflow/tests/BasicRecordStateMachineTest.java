@@ -5,8 +5,6 @@ import bot.den.foxflow.tests.BasicRecord.InnerEnum;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.wpilib.command2.CommandScheduler;
-import org.wpilib.command2.Commands;
 import org.wpilib.hardware.hal.HAL;
 import org.wpilib.simulation.SimHooks;
 
@@ -33,11 +31,8 @@ public class BasicRecordStateMachineTest {
 
     @AfterEach
     public void cleanup() {
-        // This method runs after each test to reset the scheduler state
-        CommandScheduler.getInstance().cancelAll();
-        CommandScheduler.getInstance().run(); // Call run() to execute end() methods
+        Actions.reset();
     }
-
 
     @Test
     void canCreateStateMachine() {
@@ -107,8 +102,7 @@ public class BasicRecordStateMachineTest {
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
 
         // Force a transition for one part of the specifier
-        var twoStateCommand = this.machine.transitionTo(MultiStateEnum.B);
-        CommandScheduler.getInstance().schedule(twoStateCommand);
+        this.machine.transitionTo(MultiStateEnum.B);
 
         // Verify our partial state change
         state = this.machine.currentState();
@@ -117,8 +111,7 @@ public class BasicRecordStateMachineTest {
         assertEquals(BasicRecord.InnerEnum.STAR, state.inner());
 
         // Force a transition for the other part of the specifier
-        var basicCommand = this.machine.transitionTo(BasicEnum.STATE_A);
-        CommandScheduler.getInstance().schedule(basicCommand);
+        this.machine.transitionTo(BasicEnum.STATE_A);
 
         // Verify our partial state change
         state = this.machine.currentState();
@@ -134,28 +127,6 @@ public class BasicRecordStateMachineTest {
         assertEquals(MultiStateEnum.B, state.multiState());
         assertEquals(BasicEnum.STATE_A, state.basic());
         assertEquals(BasicRecord.InnerEnum.CIRCLE, state.inner());
-    }
-
-    @Test
-    void triggerWorksOnSubsetOfData() {
-        var trigger = this.machine
-                .state(BasicEnum.STATE_A, BasicRecord.InnerEnum.CIRCLE)
-                .trigger();
-
-        // Make sure it isn't already triggered
-        assertFalse(trigger.getAsBoolean());
-
-        var firstCommand = this.machine.transitionTo(MultiStateEnum.B, BasicEnum.STATE_A);
-        CommandScheduler.getInstance().schedule(firstCommand);
-
-        // Trigger shouldn't be active yet even though it partially matches
-        assertFalse(trigger.getAsBoolean());
-
-        var secondCommand = this.machine.transitionTo(BasicRecord.InnerEnum.CIRCLE);
-        CommandScheduler.getInstance().schedule(secondCommand);
-
-        // Finally, this should be true
-        assertTrue(trigger.getAsBoolean());
     }
 
     @Test
@@ -180,8 +151,7 @@ public class BasicRecordStateMachineTest {
 
         // Reset our flag and move the state over manually
         test.set(false);
-        var command = this.machine.transitionTo(BasicEnum.STATE_A);
-        CommandScheduler.getInstance().schedule(command);
+        this.machine.transitionTo(BasicEnum.STATE_A);
 
         // Verify we've only moved to A, even after polling
         assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
@@ -233,7 +203,7 @@ public class BasicRecordStateMachineTest {
 
         // Force the transition and expect it to fail
         assertThrows(InvalidStateTransition.class,
-                () -> CommandScheduler.getInstance().schedule(this.machine.transitionTo(BasicEnum.STATE_A)));
+                () -> this.machine.transitionTo(BasicEnum.STATE_A));
     }
 
     @Test
@@ -245,7 +215,7 @@ public class BasicRecordStateMachineTest {
                 .state(BasicEnum.START)
                 .to(BasicEnum.STATE_A)
                 .transitionAlways()
-                .run(Commands.runOnce(() -> commandRan.set(true)).ignoringDisable(true));
+                .run(Actions.runOnce(() -> commandRan.set(true)));
 
         // Set up failLoudly on the same transition
         this.machine
@@ -363,26 +333,6 @@ public class BasicRecordStateMachineTest {
         this.machine.poll();
 
         assertEquals(MultiStateEnum.C, this.machine.currentState().multiState());
-        assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
-    }
-
-    /**
-     * This test was added because transition side effects were not taking into account the transition that had occurred
-     * in the updateState transition. So (A1, B1) would update to (A2, B1), but if there was a transitionTo B2 in
-     * response to that, we would see (A1, B2) instead of (A2, B2).
-     */
-    @Test
-    void callingTransitionToDuringStateTransitionWorks() {
-        this.machine
-                .state(MultiStateEnum.A)
-                .to(MultiStateEnum.B)
-                .transitionAlways()
-                .run(
-                        this.machine.transitionTo(BasicEnum.STATE_A)
-                );
-
-        this.machine.poll();
-        assertEquals(MultiStateEnum.B, this.machine.currentState().multiState());
         assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
     }
 }

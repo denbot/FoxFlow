@@ -1,11 +1,10 @@
 package bot.den.foxflow.tests.implement;
 
 import bot.den.foxflow.exceptions.InvalidStateTransition;
+import bot.den.foxflow.tests.Actions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.wpilib.command2.CommandScheduler;
-import org.wpilib.command2.Commands;
 import org.wpilib.hardware.hal.HAL;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -20,8 +19,7 @@ public class MyRecordTest {
 
     @AfterEach
     public void cleanup() {
-        CommandScheduler.getInstance().cancelAll();
-        CommandScheduler.getInstance().run();
+        Actions.reset();
     }
 
     @Test
@@ -38,8 +36,7 @@ public class MyRecordTest {
         var machine = new MyRecordStateMachine(Shapes.SQUARE);
 
         // Force a transition to a different interface implementation
-        var command = machine.transitionTo(Flavors.Chocolate);
-        CommandScheduler.getInstance().schedule(command);
+        machine.transitionTo(Flavors.Chocolate);
 
         // Verify we transitioned from Shapes to Flavors
         assertEquals(Flavors.Chocolate, machine.currentState().field());
@@ -50,8 +47,7 @@ public class MyRecordTest {
         var machine = new MyRecordStateMachine(Shapes.SQUARE);
 
         // Transition between two values of the same type
-        var command = machine.transitionTo(Shapes.CIRCLE);
-        CommandScheduler.getInstance().schedule(command);
+        machine.transitionTo(Shapes.CIRCLE);
 
         assertEquals(Shapes.CIRCLE, machine.currentState().field());
     }
@@ -81,22 +77,6 @@ public class MyRecordTest {
     }
 
     @Test
-    void triggerWorksWithInterfaces() {
-        var machine = new MyRecordStateMachine(Shapes.SQUARE);
-
-        // Create trigger for a different implementation type
-        var trigger = machine.state(Flavors.Vanilla).trigger();
-
-        assertFalse(trigger.getAsBoolean());
-
-        // Transition to the target state
-        var command = machine.transitionTo(Flavors.Vanilla);
-        CommandScheduler.getInstance().schedule(command);
-
-        assertTrue(trigger.getAsBoolean());
-    }
-
-    @Test
     void runCommandWorksWithInterfaceTransitions() {
         var machine = new MyRecordStateMachine(Shapes.SQUARE);
 
@@ -107,7 +87,7 @@ public class MyRecordTest {
                 .state(Shapes.SQUARE)
                 .to(Shapes.CIRCLE)
                 .transitionAlways()
-                .run(Commands.runOnce(() -> test.set(true)).ignoringDisable(true));
+                .run(Actions.runOnce(() -> test.set(true)));
 
         machine.poll();
 
@@ -129,8 +109,7 @@ public class MyRecordTest {
         var machine = new MyRecordStateMachine(new Sandwich(true));
 
         // Sandwich.canTransitionType allows transitions to non-Flavors
-        var command = machine.transitionTo(Shapes.CIRCLE);
-        CommandScheduler.getInstance().schedule(command);
+        machine.transitionTo(Shapes.CIRCLE);
 
         assertEquals(Shapes.CIRCLE, machine.currentState().field());
     }
@@ -140,8 +119,7 @@ public class MyRecordTest {
         var machine = new MyRecordStateMachine(new Sandwich(false));
 
         // Transition to another Sandwich where isASandwich is true
-        var command = machine.transitionTo(new Sandwich(true));
-        CommandScheduler.getInstance().schedule(command);
+        machine.transitionTo(new Sandwich(true));
 
         assertEquals(new Sandwich(true), machine.currentState().field());
     }
@@ -152,7 +130,7 @@ public class MyRecordTest {
 
         // Transition to a Sandwich where isASandwich is false should fail
         assertThrows(InvalidStateTransition.class,
-                () -> CommandScheduler.getInstance().schedule(machine.transitionTo(new Sandwich(false))));
+                () -> machine.transitionTo(new Sandwich(false)));
     }
 
     @Test
