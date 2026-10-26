@@ -107,38 +107,36 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addRunMethod() {
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
-            builder.addMethod(MethodSpec
-                    .methodBuilder("run")
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(names.dataTypeName(), "fromState")
-                    .addParameter(names.dataTypeName(), "toState")
-                    .addParameter(commandsV2.command(), "command")
-                    .addCode("""
-                                    $1T.this.verifyFromStateEnabled(fromState);
-                                    $1T.this.verifyToStateEnabled(toState);
-                                    
-                                    if(!$1T.this.transitionCommandMap.containsKey(fromState)) {
-                                        $1T.this.transitionCommandMap.put(fromState, new $2T<>());
-                                    }
-                                    
-                                    var fromStateMap = $1T.this.transitionCommandMap.get(fromState);
-                                    if(!fromStateMap.containsKey(toState)) {
-                                        fromStateMap.put(toState, new $3T<>());
-                                    }
-                                    
-                                    fromStateMap.get(toState).add(command);
-                                    
-                                    if($1T.this.currentSubData.contains(fromState)) {
-                                        $1T.this.regenerateCommandCache();
-                                    }
-                                    """,
-                            names.stateMachineClassName(),
-                            HashMap.class,
-                            ArrayList.class)
-                    .build()
-            );
-        }
+        builder.addMethod(MethodSpec
+                .methodBuilder("run")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(names.dataTypeName(), "fromState")
+                .addParameter(names.dataTypeName(), "toState")
+                .addParameter(names.commandTypeName(), "command")
+                .addCode("""
+                                $1T.this.verifyFromStateEnabled(fromState);
+                                $1T.this.verifyToStateEnabled(toState);
+                                
+                                if(!$1T.this.transitionCommandMap.containsKey(fromState)) {
+                                    $1T.this.transitionCommandMap.put(fromState, new $2T<>());
+                                }
+                                
+                                var fromStateMap = $1T.this.transitionCommandMap.get(fromState);
+                                if(!fromStateMap.containsKey(toState)) {
+                                    fromStateMap.put(toState, new $3T<>());
+                                }
+                                
+                                fromStateMap.get(toState).add(command);
+                                
+                                if($1T.this.currentSubData.contains(fromState)) {
+                                    $1T.this.regenerateCommandCache();
+                                }
+                                """,
+                        names.stateMachineClassName(),
+                        HashMap.class,
+                        ArrayList.class)
+                .build()
+        );
     }
 
     private void addFailLoudlyMethod() {

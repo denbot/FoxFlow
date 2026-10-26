@@ -73,15 +73,13 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addRunMethod() {
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
-            builder.addMethod(MethodSpec
-                    .methodBuilder("run")
-                    .addModifiers(Modifier.PUBLIC)
-                    .addParameter(commandsV2.command(), "command")
-                    .addStatement("this.manager.run(this.fromState, this.toState, command)")
-                    .build()
-            );
-        }
+        builder.addMethod(MethodSpec
+                .methodBuilder("run")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(this.names.commandTypeName(), "command")
+                .addStatement("this.manager.run(this.fromState, this.toState, command)")
+                .build()
+        );
     }
 
     private void addFailLoudlyMethod() {
@@ -100,7 +98,7 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
                 if(LimitedToBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
                     return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", commandsV2.commands());
                 }
-                return CodeBlock.of("");
+                return CodeBlock.of("this.run(() -> this.manager.updateState(state));");
             }
 
             @Override
@@ -108,7 +106,7 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
                 if(LimitedToBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
                     return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", commandsV2.commands());
                 }
-                return CodeBlock.of("");
+                return CodeBlock.of("this.run(() -> this.manager.updateState(state));");
             }
 
             @Override

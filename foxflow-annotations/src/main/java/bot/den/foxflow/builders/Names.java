@@ -7,8 +7,11 @@ import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.ClassName;
+import com.palantir.javapoet.ParameterizedTypeName;
+import com.palantir.javapoet.TypeName;
 
 import javax.lang.model.util.Elements;
+import java.util.List;
 
 public record Names(
         Validator validator,
@@ -23,7 +26,11 @@ public record Names(
         ClassName robotStateName,
 
         // Support for features
-        CommandsV2 commandsV2
+        CommandsV2 commandsV2,
+
+        // Related useful names we might use from features that are easier to propagate up in one place
+        ClassName commandTypeName,
+        ParameterizedTypeName commandListType
 ) {
     public Names(
             Elements elements,
@@ -47,6 +54,17 @@ public record Names(
         CommandsV2 commandsV2 = new CommandsV2();
         boolean hasCommandsV2 = elements.getTypeElement(commandsV2.command().canonicalName()) != null;
 
+        ClassName commandType;
+        if(hasCommandsV2) {
+            commandType = commandsV2.command();
+        } else {
+            commandType = ClassName.get(Runnable.class);
+        }
+        var commandListType = ParameterizedTypeName.get(
+                ClassName.get(List.class),
+                commandType
+        );
+
         this(
                 validator,
                 stateMachineClassName,
@@ -56,7 +74,9 @@ public record Names(
                 ClassName.get(obfuscatedPackageName, "To"),
                 dataTypeName(validator),
                 ClassName.get(RobotState.class),
-                hasCommandsV2 ? commandsV2 : null
+                hasCommandsV2 ? commandsV2 : null,
+                commandType,
+                commandListType
         );
     }
 

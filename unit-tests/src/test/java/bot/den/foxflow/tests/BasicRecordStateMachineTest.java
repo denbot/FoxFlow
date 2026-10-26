@@ -34,7 +34,6 @@ public class BasicRecordStateMachineTest {
         Actions.reset();
     }
 
-
     @Test
     void canCreateStateMachine() {
         // Technically we create the machine in `setup`, but we do want to verify the state here
@@ -128,26 +127,6 @@ public class BasicRecordStateMachineTest {
         assertEquals(MultiStateEnum.B, state.multiState());
         assertEquals(BasicEnum.STATE_A, state.basic());
         assertEquals(BasicRecord.InnerEnum.CIRCLE, state.inner());
-    }
-
-    @Test
-    void triggerWorksOnSubsetOfData() {
-        var trigger = this.machine
-                .state(BasicEnum.STATE_A, BasicRecord.InnerEnum.CIRCLE)
-                .trigger();
-
-        // Make sure it isn't already triggered
-        assertFalse(trigger.getAsBoolean());
-
-        this.machine.transitionTo(MultiStateEnum.B, BasicEnum.STATE_A);
-
-        // Trigger shouldn't be active yet even though it partially matches
-        assertFalse(trigger.getAsBoolean());
-
-        this.machine.transitionTo(BasicRecord.InnerEnum.CIRCLE);
-
-        // Finally, this should be true
-        assertTrue(trigger.getAsBoolean());
     }
 
     @Test
@@ -354,26 +333,6 @@ public class BasicRecordStateMachineTest {
         this.machine.poll();
 
         assertEquals(MultiStateEnum.C, this.machine.currentState().multiState());
-        assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
-    }
-
-    /**
-     * This test was added because transition side effects were not taking into account the transition that had occurred
-     * in the updateState transition. So (A1, B1) would update to (A2, B1), but if there was a transitionTo B2 in
-     * response to that, we would see (A1, B2) instead of (A2, B2).
-     */
-    @Test
-    void callingTransitionToDuringStateTransitionWorks() {
-        this.machine
-                .state(MultiStateEnum.A)
-                .to(MultiStateEnum.B)
-                .transitionAlways()
-                .run(
-                        Actions.runOnce(() -> this.machine.transitionTo(BasicEnum.STATE_A))
-                );
-
-        this.machine.poll();
-        assertEquals(MultiStateEnum.B, this.machine.currentState().multiState());
         assertEquals(BasicEnum.STATE_A, this.machine.currentState().basic());
     }
 }

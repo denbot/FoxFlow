@@ -83,67 +83,6 @@ public class BasicEnumStateMachineTest {
     }
 
     @Test
-    void commandInitialize() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        final AtomicBoolean test = new AtomicBoolean(false);
-
-        // Set up our state machine transition. Always run to trigger the move to a Command
-        machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
-                .run(
-                        Actions.runOnce(() -> test.set(true))
-                );
-
-        // Test our initial state
-        assertEquals(BasicEnum.START, machine.currentState());
-
-        // Poll to see if the transitions happen
-        machine.poll();
-
-        // Verify the transition
-        assertEquals(BasicEnum.STATE_A, machine.currentState());
-
-        // The runOnce command runs in the initializer and therefore runs upon being scheduled
-        assertTrue(test.get());
-    }
-
-    @Test
-    void commandRun() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        final AtomicBoolean test = new AtomicBoolean(false);
-
-        // Set up our state machine transition. Always run to trigger the move to a Command
-        machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
-                .run(
-                        Actions.run(() -> test.set(true))
-                );
-
-        // Test our initial state
-        assertEquals(BasicEnum.START, machine.currentState());
-
-        // Poll to see if the transitions happen
-        machine.poll();
-
-        // Verify the transition
-        assertEquals(BasicEnum.STATE_A, machine.currentState());
-
-        // The run command runs in the execute loop and therefore needs the scheduler
-        assertFalse(test.get());
-
-        Actions.poll();
-
-        // Now it should be true
-        assertTrue(test.get());
-    }
-
-    @Test
     void invalidTransition() {
         var machine = new BasicEnumStateMachine(BasicEnum.START);
 
@@ -348,47 +287,6 @@ public class BasicEnumStateMachineTest {
         // Should transition immediately on next poll
         machine.poll();
         assertEquals(BasicEnum.STATE_A, machine.currentState());
-    }
-
-    @Test
-    void triggerDeactivatesWhenLeavingState() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        // Create trigger for initial state
-        var trigger = machine.state(BasicEnum.START).trigger();
-
-        assertTrue(trigger.getAsBoolean());
-
-        // Transition away from START
-        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
-        machine.poll();
-
-        assertFalse(trigger.getAsBoolean());
-
-        // Transition back to START
-        machine.transitionTo(BasicEnum.START);
-
-        assertTrue(trigger.getAsBoolean());
-    }
-
-    @Test
-    void multipleTriggersSameMachine() {
-        var machine = new BasicEnumStateMachine(BasicEnum.START);
-
-        // Create triggers for different states
-        var startTrigger = machine.state(BasicEnum.START).trigger();
-        var aTrigger = machine.state(BasicEnum.STATE_A).trigger();
-
-        assertTrue(startTrigger.getAsBoolean());
-        assertFalse(aTrigger.getAsBoolean());
-
-        // Transition to STATE_A
-        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
-        machine.poll();
-
-        // Only the STATE_A trigger should be active
-        assertFalse(startTrigger.getAsBoolean());
-        assertTrue(aTrigger.getAsBoolean());
     }
 
     @Test

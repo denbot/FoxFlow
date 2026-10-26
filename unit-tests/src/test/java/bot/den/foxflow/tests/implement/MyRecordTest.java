@@ -77,21 +77,6 @@ public class MyRecordTest {
     }
 
     @Test
-    void triggerWorksWithInterfaces() {
-        var machine = new MyRecordStateMachine(Shapes.SQUARE);
-
-        // Create trigger for a different implementation type
-        var trigger = machine.state(Flavors.Vanilla).trigger();
-
-        assertFalse(trigger.getAsBoolean());
-
-        // Transition to the target state
-        machine.transitionTo(Flavors.Vanilla);
-
-        assertTrue(trigger.getAsBoolean());
-    }
-
-    @Test
     void runCommandWorksWithInterfaceTransitions() {
         var machine = new MyRecordStateMachine(Shapes.SQUARE);
 

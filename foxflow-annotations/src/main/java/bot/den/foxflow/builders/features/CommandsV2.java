@@ -9,8 +9,7 @@ public record CommandsV2(
         ClassName command,
         ClassName commands,
         ClassName commandScheduler,
-        ClassName trigger,
-        ParameterizedTypeName commandList
+        ClassName trigger
 ) {
     public CommandsV2() {
         String namespace = "org.wpilib.command2";
@@ -20,11 +19,7 @@ public record CommandsV2(
                 commandType,
                 ClassName.get(namespace, "Commands"),
                 ClassName.get(namespace, "CommandScheduler"),
-                ClassName.get(namespace + ".button", "Trigger"),
-                ParameterizedTypeName.get(
-                        ClassName.get(List.class),
-                        commandType
-                )
+                ClassName.get(namespace + ".button", "Trigger")
         );
     }
 }

@@ -185,37 +185,35 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addCommandFields() {
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
-            var transitionCommandMapType = ParameterizedTypeName.get(
-                    ClassName.get(Map.class),
-                    names.dataTypeName(),
-                    ParameterizedTypeName.get(
-                            ClassName.get(Map.class),
-                            names.dataTypeName(),
-                            commandsV2.commandList()
-                    )
-            );
+        var transitionCommandMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                names.dataTypeName(),
+                ParameterizedTypeName.get(
+                        ClassName.get(Map.class),
+                        names.dataTypeName(),
+                        names.commandListType()
+                )
+        );
 
-            builder.addField(FieldSpec
-                    .builder(transitionCommandMapType, "transitionCommandMap")
-                    .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                    .initializer("new $T<>()", HashMap.class)
-                    .build()
-            );
+        builder.addField(FieldSpec
+                .builder(transitionCommandMapType, "transitionCommandMap")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T<>()", HashMap.class)
+                .build()
+        );
 
-            var transitionCommandCacheType = ParameterizedTypeName.get(
-                    ClassName.get(Map.class),
-                    names.dataTypeName(),
-                    commandsV2.commandList()
-            );
+        var transitionCommandCacheType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                names.dataTypeName(),
+                names.commandListType()
+        );
 
-            builder.addField(FieldSpec
-                    .builder(transitionCommandCacheType, "transitionCommandCache")
-                    .addModifiers(Modifier.PRIVATE)
-                    .initializer("new $T<>()", HashMap.class)
-                    .build()
-            );
-        }
+        builder.addField(FieldSpec
+                .builder(transitionCommandCacheType, "transitionCommandCache")
+                .addModifiers(Modifier.PRIVATE)
+                .initializer("new $T<>()", HashMap.class)
+                .build()
+        );
     }
 
     private void addFailLoudlyFields() {
@@ -704,25 +702,36 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addRunTransitionCommandsMethod() {
+        CodeBlock runCommands;
         if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
-            builder.addMethod(MethodSpec
-                    .methodBuilder("runTransitionCommands")
-                    .addModifiers(Modifier.PRIVATE)
-                    .addParameter(subDataSetType, "nextStates")
-                    .addCode("""
-                            nextStates.forEach(state -> {
-                                if(! transitionCommandCache.containsKey(state)) {
-                                    return;
-                                }
-                            
-                                for(var command : transitionCommandCache.get(state)) {
-                                    $1T.getInstance().schedule(command);
-                                }
-                            });
-                            """, commandsV2.commandScheduler())
-                    .build()
-            );
+            runCommands = CodeBlock.of("""
+                    for(var command : transitionCommandCache.get(state)) {
+                        $1T.getInstance().schedule(command);
+                    }
+                    """, commandsV2.commandScheduler());
+        } else {
+            runCommands = CodeBlock.of("""
+                    for(var command : transitionCommandCache.get(state)) {
+                        command.run();
+                    }
+                    """);
         }
+
+        builder.addMethod(MethodSpec
+                .methodBuilder("runTransitionCommands")
+                .addModifiers(Modifier.PRIVATE)
+                .addParameter(subDataSetType, "nextStates")
+                .addCode("""
+                        nextStates.forEach(state -> {
+                            if(! transitionCommandCache.containsKey(state)) {
+                                return;
+                            }
+                        
+                            $1L
+                        });
+                        """, runCommands)
+                .build()
+            );
     }
 
     private void addVerifyStateEnabledCommands() {
@@ -860,39 +869,37 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                 .build()
         );
 
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
-            builder.addMethod(MethodSpec
-                    .methodBuilder("regenerateCommandCache")
-                    .addModifiers(Modifier.PRIVATE)
-                    .addCode("""
-                                    this.transitionCommandCache = new $1T<>();
-                                    
-                                    this.currentSubData.forEach(state -> {
-                                        if (!this.transitionCommandMap.containsKey(state)) {
-                                            return;
+        builder.addMethod(MethodSpec
+                .methodBuilder("regenerateCommandCache")
+                .addModifiers(Modifier.PRIVATE)
+                .addCode("""
+                                this.transitionCommandCache = new $1T<>();
+                                
+                                this.currentSubData.forEach(state -> {
+                                    if (!this.transitionCommandMap.containsKey(state)) {
+                                        return;
+                                    }
+                                
+                                    for(var entry : this.transitionCommandMap.get(state).entrySet()) {
+                                        var toState = entry.getKey();
+                                
+                                        $2T commandList;
+                                        if(this.transitionCommandCache.containsKey(toState)) {
+                                            commandList = this.transitionCommandCache.get(toState);
+                                        } else {
+                                            commandList = new $3T<>();
+                                            this.transitionCommandCache.put(toState, commandList);
                                         }
-                                    
-                                        for(var entry : this.transitionCommandMap.get(state).entrySet()) {
-                                            var toState = entry.getKey();
-                                    
-                                            $2T commandList;
-                                            if(this.transitionCommandCache.containsKey(toState)) {
-                                                commandList = this.transitionCommandCache.get(toState);
-                                            } else {
-                                                commandList = new $3T<>();
-                                                this.transitionCommandCache.put(toState, commandList);
-                                            }
-                                    
-                                            commandList.addAll(entry.getValue());
-                                        }
-                                    });
-                                    """,
-                            HashMap.class,
-                            commandsV2.commandList(),
-                            ArrayList.class)
-                    .build()
-            );
-        }
+                                
+                                        commandList.addAll(entry.getValue());
+                                    }
+                                });
+                                """,
+                        HashMap.class,
+                        names.commandListType(),
+                        ArrayList.class)
+                .build()
+        );
 
         builder.addMethod(MethodSpec
                 .methodBuilder("regenerateFailLoudlyCache")
