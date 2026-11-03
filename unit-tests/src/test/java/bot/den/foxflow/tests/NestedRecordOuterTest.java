@@ -3,8 +3,6 @@ package bot.den.foxflow.tests;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.wpilib.command2.CommandScheduler;
-import org.wpilib.command2.Commands;
 import org.wpilib.hardware.hal.HAL;
 
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -25,8 +23,7 @@ public class NestedRecordOuterTest {
 
     @AfterEach
     public void cleanup() {
-        CommandScheduler.getInstance().cancelAll();
-        CommandScheduler.getInstance().run();
+        Actions.reset();
     }
 
     @Test
@@ -39,8 +36,7 @@ public class NestedRecordOuterTest {
     @Test
     void canTransitionNestedRecordField() {
         // Force a transition on the nested record field
-        var command = machine.transitionTo(new NestedRecordOuter.NestedRecord(MultiStateEnum.B));
-        CommandScheduler.getInstance().schedule(command);
+        machine.transitionTo(new NestedRecordOuter.NestedRecord(MultiStateEnum.B));
 
         // Verify the nested field changed
         assertEquals(MultiStateEnum.B, this.machine.currentState().nested().multiStateEnum());
@@ -77,28 +73,12 @@ public class NestedRecordOuterTest {
                 .state(new NestedRecordOuter.NestedRecord(MultiStateEnum.A))
                 .to(new NestedRecordOuter.NestedRecord(MultiStateEnum.B))
                 .transitionAlways()
-                .run(Commands.runOnce(() -> test.set(true)).ignoringDisable(true));
+                .run(Actions.runOnce(() -> test.set(true)));
 
         machine.poll();
 
         // Command should have run
         assertTrue(test.get());
         assertEquals(MultiStateEnum.B, this.machine.currentState().nested().multiStateEnum());
-    }
-
-    @Test
-    void triggerOnNestedRecordState() {
-        // Create trigger for nested record state
-        var trigger = this.machine
-                .state(new NestedRecordOuter.NestedRecord(MultiStateEnum.B))
-                .trigger();
-
-        assertFalse(trigger.getAsBoolean());
-
-        // Transition to the target state
-        var command = this.machine.transitionTo(new NestedRecordOuter.NestedRecord(MultiStateEnum.B));
-        CommandScheduler.getInstance().schedule(command);
-
-        assertTrue(trigger.getAsBoolean());
     }
 }

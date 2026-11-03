@@ -4,12 +4,11 @@ import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
+import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.builders.methods.TransitionToBuilder;
 import bot.den.foxflow.builders.methods.TransitionToBuilder.TransitionToCode;
 import bot.den.foxflow.validator.RecordValidator;
 import com.palantir.javapoet.*;
-import org.wpilib.command2.Command;
-import org.wpilib.command2.Commands;
 
 import javax.lang.model.element.Modifier;
 import java.util.List;
@@ -77,7 +76,7 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
         builder.addMethod(MethodSpec
                 .methodBuilder("run")
                 .addModifiers(Modifier.PUBLIC)
-                .addParameter(Command.class, "command")
+                .addParameter(this.names.commandTypeName(), "command")
                 .addStatement("this.manager.run(this.fromState, this.toState, command)")
                 .build()
         );
@@ -96,12 +95,18 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
         var transitionToBuilder = new TransitionToBuilder(names, new TransitionToCode() {
             @Override
             public CodeBlock enumCode() {
-                return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", Commands.class);
+                if(LimitedToBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+                    return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", commandsV2.commands());
+                }
+                return CodeBlock.of("this.run(() -> this.manager.updateState(state));");
             }
 
             @Override
             public CodeBlock internalData() {
-                return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", Commands.class);
+                if(LimitedToBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+                    return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", commandsV2.commands());
+                }
+                return CodeBlock.of("this.run(() -> this.manager.updateState(state));");
             }
 
             @Override

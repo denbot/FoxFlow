@@ -34,6 +34,7 @@ public class StateMachineGenerator {
         ClassName annotatedClassName = (ClassName) ClassName.get(element.asType());
 
         this.names = new Names(
+                processingEnv.getElementUtils(),
                 validator,
                 annotatedClassName
         );

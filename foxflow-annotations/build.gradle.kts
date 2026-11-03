@@ -27,7 +27,6 @@ dependencies {
     implementation("org.wpilib.ntcore:ntcore-java:${wpilibVersion}")
     implementation("org.wpilib.telemetry:telemetry-java:${wpilibVersion}")
     implementation("org.wpilib.tunables:tunables-java:${wpilibVersion}")
-    implementation("org.wpilib.commandsv2:commandsv2-java:${wpilibVersion}")
 }
 
 java {

@@ -7,6 +7,7 @@ import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
+import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.builders.methods.TransitionToBuilder;
 import bot.den.foxflow.builders.methods.TransitionToBuilder.TransitionToCode;
 import bot.den.foxflow.validator.EnumValidator;
@@ -14,10 +15,6 @@ import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.*;
 import com.palantir.javapoet.MethodSpec.Builder;
-import org.wpilib.command2.Command;
-import org.wpilib.command2.CommandScheduler;
-import org.wpilib.command2.Commands;
-import org.wpilib.command2.button.Trigger;
 import org.wpilib.driverstation.internal.DriverStationBackend;
 import org.wpilib.hardware.hal.ControlWord;
 import org.wpilib.networktables.NetworkTableInstance;
@@ -43,7 +40,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     private final Map<String, LinkedHashMap<ClassName, String>> innerClassEnabledFields;
 
     private final ParameterizedTypeName subDataSetType;
-    private final ParameterizedTypeName commandListType;
 
 
     public StateMachineBuilder(
@@ -58,10 +54,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         subDataSetType = ParameterizedTypeName.get(
                 ClassName.get(Set.class),
                 names.dataTypeName()
-        );
-        commandListType = ParameterizedTypeName.get(
-                List.class,
-                Command.class
         );
 
         innerClassEnabledFields = Map.ofEntries(
@@ -199,7 +191,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                 ParameterizedTypeName.get(
                         ClassName.get(Map.class),
                         names.dataTypeName(),
-                        commandListType
+                        names.commandListType()
                 )
         );
 
@@ -213,7 +205,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         var transitionCommandCacheType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 names.dataTypeName(),
-                commandListType
+                names.commandListType()
         );
 
         builder.addField(FieldSpec
@@ -254,18 +246,20 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addTriggerFields() {
-        var triggerMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                ClassName.get(Trigger.class)
-        );
+        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+            var triggerMapType = ParameterizedTypeName.get(
+                    ClassName.get(Map.class),
+                    names.dataTypeName(),
+                    commandsV2.trigger()
+            );
 
-        builder.addField(FieldSpec
-                .builder(triggerMapType, "triggerMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
+            builder.addField(FieldSpec
+                    .builder(triggerMapType, "triggerMap")
+                    .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                    .initializer("new $T<>()", HashMap.class)
+                    .build()
+            );
+        }
     }
 
     private void addTimerFields() {
@@ -513,19 +507,19 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         var transitionToBuilder = new TransitionToBuilder(names, new TransitionToCode() {
             @Override
             public CodeBlock enumCode() {
-                return CodeBlock.of("return $T.runOnce(() -> manager.updateState(state)).ignoringDisable(true);", Commands.class);
+                return CodeBlock.of("manager.updateState(state);");
             }
 
             @Override
             public CodeBlock internalData() {
-                return CodeBlock.of("return $T.runOnce(() -> manager.updateState(state)).ignoringDisable(true);", Commands.class);
+                return CodeBlock.of("");
             }
 
             @Override
             public CodeBlock fields(RecordValidator recordValidator, List<Field<ClassName>> fields) {
                 return CodeBlock
                         .builder()
-                        .add("return transitionTo(")
+                        .add("manager.updateState(")
                         .add(
                                 recordValidator.dataEmitter(fields)
                                         .withConstructor()
@@ -538,7 +532,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
             @Override
             public TypeName returnType() {
-                return ClassName.get(Command.class);
+                return TypeName.VOID;
             }
         });
 
@@ -708,6 +702,21 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addRunTransitionCommandsMethod() {
+        CodeBlock runCommands;
+        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+            runCommands = CodeBlock.of("""
+                    for(var command : transitionCommandCache.get(state)) {
+                        $1T.getInstance().schedule(command);
+                    }
+                    """, commandsV2.commandScheduler());
+        } else {
+            runCommands = CodeBlock.of("""
+                    for(var command : transitionCommandCache.get(state)) {
+                        command.run();
+                    }
+                    """);
+        }
+
         builder.addMethod(MethodSpec
                 .methodBuilder("runTransitionCommands")
                 .addModifiers(Modifier.PRIVATE)
@@ -718,13 +727,11 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                 return;
                             }
                         
-                            for(var command : transitionCommandCache.get(state)) {
-                                $1T.getInstance().schedule(command);
-                            }
+                            $1L
                         });
-                        """, CommandScheduler.class)
+                        """, runCommands)
                 .build()
-        );
+            );
     }
 
     private void addVerifyStateEnabledCommands() {
@@ -889,7 +896,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                 });
                                 """,
                         HashMap.class,
-                        commandListType,
+                        names.commandListType(),
                         ArrayList.class)
                 .build()
         );
