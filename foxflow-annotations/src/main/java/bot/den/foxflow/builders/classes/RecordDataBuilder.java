@@ -38,8 +38,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         generateRemoveNullsMap();
 
         addSuperinterface();
-        addHasInterfaces();
-        addCanTransitionHelperMethods();
+        addDefaultFieldInterfaces();
         addFromRecordMethod();
         addToRecordMethod();
         addCanMergeMethod();
@@ -100,46 +99,16 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         }
     }
 
-    private void addHasInterfaces() {
+    private void addDefaultFieldInterfaces() {
         for (var field : validator.fields) {
-            var hasInterface = TypeSpec
-                    .interfaceBuilder(getHasInterfaceName(field.value()))
-                    .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
-
             var method = MethodSpec
                     .methodBuilder(field.name())
-                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .addModifiers(Modifier.PUBLIC, Modifier.DEFAULT)
                     .returns(getMaskedDataType(field))
+                    .addCode("return null;")
                     .build();
-            hasInterface.addMethod(method);
 
-            builder.addType(hasInterface.build());
-        }
-    }
-
-    private ClassName getHasInterfaceName(ClassName name) {
-        return validator.wrappedClassName().nestedClass("Has" + name.simpleName());
-    }
-
-    private void addCanTransitionHelperMethods() {
-        for (var field : validator.fields) {
-            var dataTypeName = getMaskedDataType(field);
-            var entryName = field.name();
-
-            MethodSpec.Builder extractorMethodBuilder = MethodSpec
-                    .methodBuilder("get" + Util.ucfirst(entryName))
-                    .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                    .returns(dataTypeName)
-                    .addParameter(validator.wrappedClassName(), "data");
-
-            extractorMethodBuilder.addStatement(
-                    "if (data instanceof $T s) return s." + entryName + "()",
-                    getHasInterfaceName(field.value())
-            );
-
-            extractorMethodBuilder.addStatement("return null");
-
-            builder.addMethod(extractorMethodBuilder.build());
+            builder.addMethod(method);
         }
     }
 
@@ -232,7 +201,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                 .returns(boolean.class)
                 .addCode(CodeBlock.join(
                         validator.fields.stream()
-                                .map(f -> CodeBlock.of("var this_$1L = get$2L(this);\nvar data_$1L = get$2L(data);", f.name(), Util.ucfirst(f.name())))
+                                .map(f -> CodeBlock.of("var this_$1L = this.$1L();\nvar data_$1L = data.$1L();", f.name()))
                                 .toList(),
                         "\n"
                 ))
@@ -256,7 +225,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                     .returns(validator.wrappedClassName())
                     .addCode(CodeBlock.join(
                             validator.fields.stream()
-                                    .map(f -> CodeBlock.of("var this_$1L = get$2L(this);\nvar data_$1L = get$2L(data);", f.name(), Util.ucfirst(f.name())))
+                                    .map(f -> CodeBlock.of("var this_$1L = this.$1L();\nvar data_$1L = data.$1L();", f.name()))
                                     .toList(),
                             "\n"
                     ))
@@ -288,21 +257,21 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
             if (checkStateTransition) {
                 compareTransitions.add(CodeBlock.of(
                         """
-                                $2T this$1LField = get$1L(this);
-                                $2T other$1LField = get$1L(data);
+                                $2T this$1LField = this.$1L();
+                                $2T other$1LField = data.$1L();
                                 if(this$1LField != null && other$1LField != null && !this$1LField.canTransitionState(other$1LField)) return false;
                                 """,
-                        Util.ucfirst(fieldName),
+                        fieldName,
                         dataTypeName
                 ));
 
                 attemptTransitions.add(CodeBlock.of(
                         """
-                                $2T this$1LField = get$1L(this);
-                                $2T other$1LField = get$1L(data);
+                                $2T this$1LField = this.$1L();
+                                $2T other$1LField = data.$1L();
                                 if(this$1LField != null && other$1LField != null) this$1LField.attemptTransitionTo(other$1LField);
                                 """,
-                        Util.ucfirst(fieldName),
+                        fieldName,
                         dataTypeName
                 ));
             }
@@ -409,10 +378,6 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                 .recordConstructor(recordConstructor.build())
                 .addSuperinterface(validator.wrappedClassName())
                 .addMethod(numElements);
-
-        for (var field : types) {
-            innerClass.addSuperinterface(getHasInterfaceName(field.value()));
-        }
 
         if (removeNullsMap.containsKey(nestedName)) {
             MethodSpec.Builder removeNullsMethod = MethodSpec

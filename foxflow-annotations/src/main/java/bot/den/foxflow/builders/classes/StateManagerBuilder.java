@@ -216,10 +216,8 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
         } else if (validator instanceof RecordValidator rv) {
             for (var field : rv.fields) {
                 updateStateMethodBuilder.addStatement(
-                        "var $1LData = $3T.get$2L(nextStateData)",
-                        field.name(),
-                        Util.ucfirst(field.name()),
-                        rv.wrappedClassName()
+                        "var $1LData = nextStateData.$1L();",
+                        field.name()
                 );
             }
 
