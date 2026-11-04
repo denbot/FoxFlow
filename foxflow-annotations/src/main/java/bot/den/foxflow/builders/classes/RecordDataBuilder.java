@@ -38,6 +38,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         generateRemoveNullsMap();
 
         addSuperinterface();
+        addHasInterfaces();
         addCanTransitionHelperMethods();
         addFromRecordMethod();
         addToRecordMethod();
@@ -99,14 +100,30 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         }
     }
 
+    private void addHasInterfaces() {
+        for (var field : validator.fields) {
+            var hasInterface = TypeSpec
+                    .interfaceBuilder(getHasInterfaceName(field.value()))
+                    .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
+
+            var method = MethodSpec
+                    .methodBuilder(field.name())
+                    .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
+                    .returns(getMaskedDataType(field))
+                    .build();
+            hasInterface.addMethod(method);
+
+            builder.addType(hasInterface.build());
+        }
+    }
+
+    private ClassName getHasInterfaceName(ClassName name) {
+        return validator.wrappedClassName().nestedClass("Has" + name.simpleName());
+    }
+
     private void addCanTransitionHelperMethods() {
         for (var field : validator.fields) {
-            var dataTypeName = field.value();
-            if (validator.nestedRecords.containsKey(dataTypeName)) {
-                dataTypeName = validator.nestedRecords.get(dataTypeName);
-            } else if (validator.nestedInterfaces.containsKey(dataTypeName)) {
-                dataTypeName = validator.nestedInterfaces.get(dataTypeName);
-            }
+            var dataTypeName = getMaskedDataType(field);
             var entryName = field.name();
 
             MethodSpec.Builder extractorMethodBuilder = MethodSpec
@@ -114,24 +131,30 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                     .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                     .returns(dataTypeName)
                     .addParameter(validator.wrappedClassName(), "data");
-            for (var typesClassEntry : validator.fieldToInnerClass.entrySet()) {
-                var types = typesClassEntry.getKey();
-                if (!types.contains(field)) {
-                    continue;
-                }
 
-                var innerClassName = typesClassEntry.getValue();
-
-                extractorMethodBuilder.addStatement(
-                        "if (data instanceof $T s) return s." + entryName,
-                        innerClassName
-                );
-            }
+            extractorMethodBuilder.addStatement(
+                    "if (data instanceof $T s) return s." + entryName + "()",
+                    getHasInterfaceName(field.value())
+            );
 
             extractorMethodBuilder.addStatement("return null");
 
             builder.addMethod(extractorMethodBuilder.build());
         }
+    }
+
+    /**
+     * @param field The input record field we're converting
+     * @return Either the exact enum value or if it's another record/interface, the nested data values.
+     */
+    private ClassName getMaskedDataType(Field<ClassName> field) {
+        var dataTypeName = field.value();
+        if (validator.nestedRecords.containsKey(dataTypeName)) {
+            dataTypeName = validator.nestedRecords.get(dataTypeName);
+        } else if (validator.nestedInterfaces.containsKey(dataTypeName)) {
+            dataTypeName = validator.nestedInterfaces.get(dataTypeName);
+        }
+        return dataTypeName;
     }
 
     /**
@@ -259,12 +282,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         for (var field : validator.fields) {
             // Add the type parameter to the constructor
             String fieldName = field.name();
-            var dataTypeName = field.value();
-            if (validator.nestedRecords.containsKey(dataTypeName)) {
-                dataTypeName = validator.nestedRecords.get(dataTypeName);
-            } else if (validator.nestedInterfaces.containsKey(dataTypeName)) {
-                dataTypeName = validator.nestedInterfaces.get(dataTypeName);
-            }
+            var dataTypeName = getMaskedDataType(field);
 
             var checkStateTransition = validator.supportsStateTransition.get(field.value());
             if (checkStateTransition) {
@@ -373,12 +391,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         for (var field : types) {
             // Add the type parameter to the constructor
             String fieldName = field.name();
-            var dataTypeName = field.value();
-            if (validator.nestedRecords.containsKey(dataTypeName)) {
-                dataTypeName = validator.nestedRecords.get(dataTypeName);
-            } else if (validator.nestedInterfaces.containsKey(dataTypeName)) {
-                dataTypeName = validator.nestedInterfaces.get(dataTypeName);
-            }
+            var dataTypeName = getMaskedDataType(field);
 
             recordConstructor.addParameter(dataTypeName, fieldName);
         }
@@ -397,6 +410,10 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                 .addSuperinterface(validator.wrappedClassName())
                 .addMethod(numElements);
 
+        for (var field : types) {
+            innerClass.addSuperinterface(getHasInterfaceName(field.value()));
+        }
+
         if (removeNullsMap.containsKey(nestedName)) {
             MethodSpec.Builder removeNullsMethod = MethodSpec
                     .methodBuilder("removeNulls")
@@ -409,7 +426,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                 fieldDifference.removeAll(validator.innerClassToField.get(childClass));
 
                 // Field difference only has one element now by definition of the parent/child relationship
-                var field = fieldDifference.get(0);
+                var field = fieldDifference.getFirst();
                 boolean needsRemoveNulls = removeNullsMap.containsKey(childClass);
 
                 removeNullsMethod.addStatement(
