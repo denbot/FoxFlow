@@ -1,14 +1,13 @@
 package bot.den.foxflow.builders;
 
+import bot.den.foxflow.Environment;
 import bot.den.foxflow.RobotState;
-import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.ParameterizedTypeName;
-import com.palantir.javapoet.TypeName;
 
 import javax.lang.model.util.Elements;
 import java.util.List;
@@ -33,15 +32,16 @@ public record Names(
         ParameterizedTypeName commandListType
 ) {
     public Names(
-            Elements elements,
-            Validator validator,
-            ClassName annotatedClassName
+            Environment environment,
+            Validator validator
     ) {
+        ClassName annotatedClassName = (ClassName) ClassName.get(environment.element().asType());
+
         this(
-                elements,
+                environment.processingEnvironment().getElementUtils(),
                 validator,
                 annotatedClassName.peerClass(annotatedClassName.simpleName() + "StateMachine"),
-                Util.getObfuscatedPackageName(annotatedClassName)
+                environment.getObfuscatedPackageName(annotatedClassName)
         );
     }
 

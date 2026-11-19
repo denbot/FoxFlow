@@ -31,12 +31,9 @@ public class StateMachineGenerator {
             throw new RuntimeException("The StateMachine annotation is only valid on enums and records");
         }
 
-        ClassName annotatedClassName = (ClassName) ClassName.get(element.asType());
-
         this.names = new Names(
-                processingEnv.getElementUtils(),
-                validator,
-                annotatedClassName
+                environment,
+                validator
         );
     }
 
