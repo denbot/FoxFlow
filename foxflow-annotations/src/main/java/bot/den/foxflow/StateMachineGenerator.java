@@ -1,11 +1,11 @@
 package bot.den.foxflow;
 
-import bot.den.foxflow.builders.Names;
+import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.classes.*;
+import bot.den.foxflow.builders.classes.rules.RulesBuilder;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
-import com.palantir.javapoet.ClassName;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.ElementKind;
@@ -43,6 +43,12 @@ public class StateMachineGenerator {
                 this.environment.writeType(type.getFirst(), type.getSecond());
             }
         }
+
+        // Rules class
+        this.environment.writeType(
+                names.rules().name().packageName(),
+                new RulesBuilder(names).build()
+        );
 
         // Pair class
         this.environment.writeType(

@@ -1,7 +1,7 @@
 package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.Generated;
-import bot.den.foxflow.builders.Names;
+import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;

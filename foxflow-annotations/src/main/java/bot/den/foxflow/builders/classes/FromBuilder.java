@@ -2,7 +2,7 @@ package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.FieldHelper;
-import bot.den.foxflow.builders.Names;
+import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.validator.RecordValidator;
