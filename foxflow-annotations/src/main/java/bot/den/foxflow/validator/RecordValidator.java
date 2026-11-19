@@ -37,7 +37,7 @@ public class RecordValidator implements Validator {
         var typeElement = environment.element();
         originalTypeName = ClassName.get(typeElement);
 
-        String obfuscatedPackageName = Util.getObfuscatedPackageName(originalTypeName);
+        String obfuscatedPackageName = environment.getObfuscatedPackageName(originalTypeName);
         wrappedTypeName = ClassName.get(obfuscatedPackageName, "Data");
         pairName = wrappedTypeName.nestedClass("Pair");
         timeName = wrappedTypeName.nestedClass("Time");

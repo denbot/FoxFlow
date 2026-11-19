@@ -19,7 +19,7 @@ public class InterfaceValidator implements Validator {
 
     public InterfaceValidator(Environment environment) {
         originalTypeName = ClassName.get(environment.element());
-        String obfuscatedPackageName = Util.getObfuscatedPackageName(originalTypeName);
+        String obfuscatedPackageName = environment.getObfuscatedPackageName(originalTypeName);
         wrappedTypeName = ClassName.get(obfuscatedPackageName, "Data");
         pairName = wrappedTypeName.nestedClass("Pair");
         timeName = wrappedTypeName.nestedClass("Time");

@@ -11,6 +11,7 @@ import java.util.Set;
 public class StateMachineAnnotationProcessor extends AbstractProcessor {
     public static final String stateMachineAnnotationClass = StateMachine.class.getTypeName();
     public static final String defaultStateAnnotationClass = DefaultState.class.getTypeName();
+    public static final String stablePackageNamesOption = "foxflow.stablePackageNames";
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
@@ -61,5 +62,10 @@ public class StateMachineAnnotationProcessor extends AbstractProcessor {
     @Override
     public Set<String> getSupportedAnnotationTypes() {
         return Set.of(stateMachineAnnotationClass, defaultStateAnnotationClass);
+    }
+
+    @Override
+    public Set<String> getSupportedOptions() {
+        return Set.of(stablePackageNamesOption);
     }
 }

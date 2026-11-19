@@ -155,7 +155,7 @@ commandsSuites.each { suite ->
             }
 
             def javac = ToolProvider.systemJavaCompiler
-            def args = ['-proc:only', '-processorpath', processorPath.asPath, '-cp', classpath.asPath, '-s', out.path] + classNames
+            def args = ['-proc:only', '-Afoxflow.stablePackageNames', '-processorpath', processorPath.asPath, '-cp', classpath.asPath, '-s', out.path] + classNames
             if (javac.run(null, null, null, args as String[]) != 0) {
                 throw new GradleException("Annotation processing failed for test${suite}")
             }
