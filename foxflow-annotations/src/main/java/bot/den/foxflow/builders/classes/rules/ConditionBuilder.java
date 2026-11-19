@@ -16,7 +16,7 @@ public class ConditionBuilder implements TypedBuilder<TypeSpec> {
         this.condition = condition;
         builder = TypeSpec.interfaceBuilder(condition.name())
                 .addModifiers(Modifier.PUBLIC, Modifier.SEALED);
-        
+
         addAlwaysRecord();
         addWhenRecord();
     }

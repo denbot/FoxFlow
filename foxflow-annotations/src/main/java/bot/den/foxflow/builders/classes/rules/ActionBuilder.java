@@ -1,15 +1,12 @@
 package bot.den.foxflow.builders.classes.rules;
 
 import bot.den.foxflow.builders.names.Action;
-import bot.den.foxflow.builders.names.Names;
-import bot.den.foxflow.builders.names.Rules;
 import bot.den.foxflow.builders.TypedBuilder;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
-import java.util.function.BooleanSupplier;
 
 public class ActionBuilder implements TypedBuilder<TypeSpec> {
     private final Action action;
@@ -27,7 +24,7 @@ public class ActionBuilder implements TypedBuilder<TypeSpec> {
         this.commandName = commandName;
 
         builder = TypeSpec.interfaceBuilder(action.name())
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC, Modifier.SEALED);
 
         addTransitionToRecord();
         addRunCommand();
@@ -50,7 +47,7 @@ public class ActionBuilder implements TypedBuilder<TypeSpec> {
     private void addRunCommand() {
         MethodSpec constructor = MethodSpec
                 .constructorBuilder()
-                .addParameter(commandName, "data")
+                .addParameter(commandName, "command")
                 .build();
 
         TypeSpec.Builder runCommand = TypeSpec.recordBuilder(action.runCommand())

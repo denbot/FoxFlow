@@ -27,7 +27,7 @@ public record Names(
         ClassName timeName,
 
         // Sub-names for deeply nested classes
-        Rules rules,
+        Rule rule,
 
         // Support for features
         CommandsV2 commandsV2,
@@ -82,7 +82,7 @@ public record Names(
                 ClassName.get(RobotState.class),
                 ClassName.get(obfuscatedPackageName, "Pair"),
                 ClassName.get(obfuscatedPackageName, "Time"),
-                new Rules(obfuscatedPackageName),
+                new Rule(obfuscatedPackageName),
                 hasCommandsV2 ? commandsV2 : null,
                 commandType,
                 commandListType

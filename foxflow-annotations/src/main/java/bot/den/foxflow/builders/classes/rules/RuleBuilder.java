@@ -2,28 +2,28 @@ package bot.den.foxflow.builders.classes.rules;
 
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.names.Names;
-import bot.den.foxflow.builders.names.Rules;
+import bot.den.foxflow.builders.names.Rule;
 import bot.den.foxflow.builders.TypedBuilder;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;
 
 import javax.lang.model.element.Modifier;
 
-public class RulesBuilder implements TypedBuilder<TypeSpec> {
-    private final Rules rules;
+public class RuleBuilder implements TypedBuilder<TypeSpec> {
+    private final Rule rule;
     private final TypeSpec.Builder builder;
 
-    public RulesBuilder(Names names) {
-        this.rules = names.rules();
-        builder = TypeSpec.recordBuilder(rules.name())
+    public RuleBuilder(Names names) {
+        this.rule = names.rule();
+        builder = TypeSpec.recordBuilder(rule.name())
                 .addModifiers(Modifier.PUBLIC)
                 .addAnnotation(Generated.class);
 
         addConstructor();
 
-        builder.addType(new ConditionBuilder(rules.condition()).build());
+        builder.addType(new ConditionBuilder(rule.condition()).build());
         builder.addType(new ActionBuilder(
-                rules.action(),
+                rule.action(),
                 names.dataTypeName(),
                 names.commandTypeName()
         ).build());
@@ -32,8 +32,8 @@ public class RulesBuilder implements TypedBuilder<TypeSpec> {
     private void addConstructor() {
         MethodSpec constructor = MethodSpec
                 .constructorBuilder()
-                .addParameter(rules.condition().name(), "condition")
-                .addParameter(rules.action().name(), "action")
+                .addParameter(rule.condition().name(), "condition")
+                .addParameter(rule.action().name(), "action")
                 .build();
 
         builder.recordConstructor(constructor);

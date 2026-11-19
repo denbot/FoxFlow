@@ -2,8 +2,8 @@ package bot.den.foxflow.builders.names;
 
 import com.palantir.javapoet.ClassName;
 
-public record Rules(
-        // Name of the rules
+public record Rule(
+        // Name of the rule
         ClassName name,
 
         // Conditions
@@ -12,15 +12,15 @@ public record Rules(
         // Actions
         Action action
 ) {
-    public Rules(
+    public Rule(
             String obfuscatedPackageName
     ) {
-        var rulesName = ClassName.get(obfuscatedPackageName, "Rules");
-        var conditionName = rulesName.nestedClass("Condition");
-        var actionName = rulesName.nestedClass("Action");
+        var ruleName = ClassName.get(obfuscatedPackageName, "Rule");
+        var conditionName = ruleName.nestedClass("Condition");
+        var actionName = ruleName.nestedClass("Action");
 
         this(
-                rulesName,
+                ruleName,
                 new Condition(conditionName),
                 new Action(actionName)
         );
