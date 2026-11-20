@@ -47,9 +47,13 @@ public class ToBuilder implements TypedBuilder<TypeSpec> {
                 .methodBuilder("transitionWhen")
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(BooleanSupplier.class, "booleanSupplier")
-                .returns(names.toClassName())
-                .addStatement("this.manager.transitionWhen(this.fromState, this.toState, booleanSupplier)")
-                .addStatement("return this")
+                .addCode("""
+                        var rule = new $1T(new $2T(booleanSupplier), new $3T(toState));
+                        this.manager.addRule(fromState, rule);
+                        """,
+                        names.rule().name(),
+                        names.rule().condition().when(),
+                        names.rule().action().transitionTo())
                 .build()
         );
     }

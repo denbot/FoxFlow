@@ -29,7 +29,6 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addModifiers(Modifier.PUBLIC);
 
         addAddRuleMethod();
-        addWhenMethod();
         addAfterMethod();
         addRunMethod();
         addFailLoudlyMethod();
@@ -57,39 +56,6 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                         }
                         """,
                         names.stateMachineClassName(),
-                        ArrayList.class)
-                .build()
-        );
-    }
-
-    private void addWhenMethod() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("transitionWhen")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(names.dataTypeName(), "fromState")
-                .addParameter(names.dataTypeName(), "toState")
-                .addParameter(BooleanSupplier.class, "booleanSupplier")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                
-                                if(!$1T.this.transitionWhenMap.containsKey(fromState)) {
-                                    $1T.this.transitionWhenMap.put(fromState, new $2T<>());
-                                }
-                                
-                                var fromStateMap = $1T.this.transitionWhenMap.get(fromState);
-                                
-                                if(!fromStateMap.containsKey(toState)) {
-                                    fromStateMap.put(toState, new $3T<>());
-                                }
-                                
-                                fromStateMap.get(toState).add(booleanSupplier);
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateTransitionWhenCache();
-                                }
-                                """,
-                        names.stateMachineClassName(),
-                        HashMap.class,
                         ArrayList.class)
                 .build()
         );

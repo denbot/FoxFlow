@@ -166,26 +166,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addTransitionWhenFields() {
-        var transitionWhenMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                ParameterizedTypeName.get(
-                        ClassName.get(Map.class),
-                        names.dataTypeName(),
-                        ParameterizedTypeName.get(
-                                List.class,
-                                BooleanSupplier.class
-                        )
-                )
-        );
-
-        builder.addField(FieldSpec
-                .builder(transitionWhenMapType, "transitionWhenMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
         var transitionWhenCacheType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 ClassName.get(BooleanSupplier.class),
@@ -863,22 +843,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                 this.transitionWhenCache = new $1T<>();
                                 
                                 this.currentSubData.forEach(state -> {
-                                    if (!this.transitionWhenMap.containsKey(state)) {
-                                        return;
-                                    }
-                                
-                                    for (var fromEntry : this.transitionWhenMap.get(state).entrySet()) {
-                                        for (var supplier : fromEntry.getValue()) {
-                                            if (!this.transitionWhenCache.containsKey(supplier)) {
-                                                this.transitionWhenCache.put(supplier, new $2T<>());
-                                            }
-                                
-                                            this.transitionWhenCache.get(supplier).add(new $3T(state, fromEntry.getKey()));
-                                        }
-                                    }
-                                });
-                                
-                                this.currentSubData.forEach(state -> {
                                     if (!this.transitionRules.containsKey(state)) {
                                         return;
                                     }
@@ -895,7 +859,11 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                                     .computeIfAbsent(supplier, _ -> new $2T<>())
                                                     .add(new $3T(state, data));
                                             }
-                                            case $8T _ -> {}
+                                            case $8T($4T supplier) -> {
+                                                this.transitionWhenCache
+                                                    .computeIfAbsent(supplier, _ -> new $2T<>())
+                                                    .add(new $3T(state, data));
+                                            }
                                             case $9T _ -> {}
                                         }
                                     }
