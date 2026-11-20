@@ -4,6 +4,7 @@ import bot.den.foxflow.builders.names.Condition;
 import bot.den.foxflow.builders.TypedBuilder;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;
+import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
 import java.util.function.BooleanSupplier;
@@ -19,6 +20,7 @@ public class ConditionBuilder implements TypedBuilder<TypeSpec> {
 
         addAlwaysRecord();
         addWhenRecord();
+        addAfterRecord();
     }
 
     private void addAlwaysRecord() {
@@ -36,6 +38,20 @@ public class ConditionBuilder implements TypedBuilder<TypeSpec> {
                 .build();
 
         TypeSpec.Builder when = TypeSpec.recordBuilder(condition.when())
+                .addSuperinterface(condition.name())
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .recordConstructor(constructor);
+
+        builder.addType(when.build());
+    }
+
+    private void addAfterRecord() {
+        MethodSpec constructor = MethodSpec
+                .constructorBuilder()
+                .addParameter(Time.class, "time")
+                .build();
+
+        TypeSpec.Builder when = TypeSpec.recordBuilder(condition.after())
                 .addSuperinterface(condition.name())
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .recordConstructor(constructor);

@@ -5,7 +5,8 @@ import com.palantir.javapoet.ClassName;
 public record Condition(
         ClassName name,
         ClassName always,
-        ClassName when
+        ClassName when,
+        ClassName after
 ) {
     public Condition(
             ClassName name
@@ -13,7 +14,8 @@ public record Condition(
         this(
                 name,
                 name.nestedClass("Always"),
-                name.nestedClass("When")
+                name.nestedClass("When"),
+                name.nestedClass("After")
         );
     }
 }
