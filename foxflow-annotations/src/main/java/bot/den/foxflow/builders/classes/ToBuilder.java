@@ -58,8 +58,13 @@ public class ToBuilder implements TypedBuilder<TypeSpec> {
         builder.addMethod(MethodSpec
                 .methodBuilder("transitionAlways")
                 .addModifiers(Modifier.PUBLIC)
-                .returns(names.toClassName())
-                .addStatement("return transitionWhen(() -> true)")
+                .addCode("""
+                        var rule = new $1T(new $2T(), new $3T(toState));
+                        this.manager.addRule(fromState, rule);
+                        """,
+                        names.rule().name(),
+                        names.rule().condition().always(),
+                        names.rule().action().transitionTo())
                 .build()
         );
     }

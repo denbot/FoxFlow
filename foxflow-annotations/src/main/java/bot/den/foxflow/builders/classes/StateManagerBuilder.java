@@ -28,12 +28,38 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
         builder = TypeSpec.classBuilder(names.managerClassName())
                 .addModifiers(Modifier.PUBLIC);
 
+        addAddRuleMethod();
         addWhenMethod();
         addAfterMethod();
         addRunMethod();
         addFailLoudlyMethod();
         addTriggerMethod();
         addUpdateStateMethod();
+    }
+
+    private void addAddRuleMethod() {
+        builder.addMethod(MethodSpec
+                .methodBuilder("addRule")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(names.dataTypeName(), "fromState")
+                .addParameter(names.rule().name(), "rule")
+                .addCode("""
+                        $1T.this.verifyFromStateEnabled(fromState);
+                        
+                        if(!$1T.this.transitionRules.containsKey(fromState)) {
+                            $1T.this.transitionRules.put(fromState, new $2T<>());
+                        }
+                        
+                        $1T.this.transitionRules.get(fromState).add(rule);
+                        
+                        if($1T.this.currentSubData.contains(fromState)) {
+                            $1T.this.regenerateTransitionWhenCache();
+                        }
+                        """,
+                        names.stateMachineClassName(),
+                        ArrayList.class)
+                .build()
+        );
     }
 
     private void addWhenMethod() {
@@ -164,7 +190,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addTriggerMethod() {
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.commandsV2() instanceof CommandsV2 commandsV2) {
             builder.addMethod(MethodSpec
                     .methodBuilder("trigger")
                     .addModifiers(Modifier.PUBLIC)
@@ -251,46 +277,46 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
         updateStateMethodBuilder
                 .addCode("""
                                 var nextToStates = generateToSubDataStates(nextState);
-
+                                
                                 if(! $1T.disjoint(failLoudlyCache, nextToStates)) {
                                     var failLoudly = new $2T("State transition was requested to fail loudly");
-
+                                
                                     throw new $3T(currentState, nextState, failLoudly);
                                 }
-
+                                
                                 var nextFromStates = generateFromSubDataStates(nextState);
-
+                                
                                 // Stop the current timers that aren't in our new state
                                 for(var currentData : currentSubData) {
                                     if(!timerMap.containsKey(currentData)) {
                                         continue; // No timer to stop
                                     }
-
+                                
                                     if(nextFromStates.contains(currentData)) {
                                         continue; // This timer will continue on
                                     }
-
+                                
                                     var timer = timerMap.get(currentData);
                                     timer.stop();
                                     timer.reset();
                                 }
-
+                                
                                 // Start timers that aren't in our current state but are in our new
                                 for(var nextData : nextFromStates) {
                                     if(!timerMap.containsKey(nextData)) {
                                         continue; // No timer to start
                                     }
-
+                                
                                     var timer = timerMap.get(nextData);
                                     timer.start(); // Start does nothing if the timer is already started
                                 }
-
+                                
                                 currentState = nextState;
                                 currentStatePublisher.set(currentState.toString());
                                 currentSubData = nextFromStates;
-
+                                
                                 runTransitionCommands(nextToStates);
-
+                                
                                 regenerateTransitionWhenCache();
                                 regenerateCommandCache();
                                 regenerateFailLoudlyCache();

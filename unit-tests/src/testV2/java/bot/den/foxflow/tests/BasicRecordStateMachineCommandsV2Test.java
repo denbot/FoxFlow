@@ -60,10 +60,8 @@ public class BasicRecordStateMachineCommandsV2Test {
      */
     @Test
     void callingTransitionToDuringStateTransitionWorks() {
-        this.machine
-                .state(MultiStateEnum.A)
-                .to(MultiStateEnum.B)
-                .transitionAlways()
+        this.machine.state(MultiStateEnum.A).to(MultiStateEnum.B).transitionAlways();
+        this.machine.state(MultiStateEnum.A).to(MultiStateEnum.B)
                 .run(
                         Actions.runOnce(() -> this.machine.transitionTo(BasicEnum.STATE_A))
                 );

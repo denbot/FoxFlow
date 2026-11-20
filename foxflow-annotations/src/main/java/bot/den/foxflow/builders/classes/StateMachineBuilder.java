@@ -74,6 +74,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         addManagerField();
         addCurrentDataFields();
         addNetworkTablesFields();
+        addTransitionRuleFields();
         addTransitionWhenFields();
         addCommandFields();
         addFailLoudlyFields();
@@ -142,6 +143,24 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                 .builder(StringPublisher.class, "currentStatePublisher")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer("currentStateTopic.publish()")
+                .build()
+        );
+    }
+
+    private void addTransitionRuleFields() {
+        var transitionRuleMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                names.dataTypeName(),
+                ParameterizedTypeName.get(
+                        ClassName.get(List.class),
+                        names.rule().name()
+                )
+        );
+
+        builder.addField(FieldSpec
+                .builder(transitionRuleMapType, "transitionRules")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T<>()", HashMap.class)
                 .build()
         );
     }
@@ -246,7 +265,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addTriggerFields() {
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.commandsV2() instanceof CommandsV2 commandsV2) {
             var triggerMapType = ParameterizedTypeName.get(
                     ClassName.get(Map.class),
                     names.dataTypeName(),
@@ -576,7 +595,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                     names.dataTypeName(),
                     rv.fieldToInnerClass.get(List.of(robotFieldOption.get())),
                     DriverStationBackend.class
-                    );
+            );
         }
 
         pollMethodBuilder.addCode(
@@ -700,7 +719,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
     private void addRunTransitionCommandsMethod() {
         CodeBlock runCommands;
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.commandsV2() instanceof CommandsV2 commandsV2) {
             runCommands = CodeBlock.of("""
                     for(var command : transitionCommandCache.get(state)) {
                         $1T.getInstance().schedule(command);
@@ -728,7 +747,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                         });
                         """, runCommands)
                 .build()
-            );
+        );
     }
 
     private void addVerifyStateEnabledCommands() {
@@ -858,10 +877,39 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                         }
                                     }
                                 });
+                                
+                                this.currentSubData.forEach(state -> {
+                                    if (!this.transitionRules.containsKey(state)) {
+                                        return;
+                                    }
+                                
+                                    for (var rule : this.transitionRules.get(state)) {
+                                        if(! (rule.action() instanceof $5T($6T data))) {
+                                            return;
+                                        }
+
+                                        switch(rule.condition()) {
+                                            case $7T _ -> {
+                                                $4T supplier = () -> true;
+                                                this.transitionWhenCache
+                                                    .computeIfAbsent(supplier, _ -> new $2T<>())
+                                                    .add(new $3T(state, data));
+                                            }
+                                            case $8T _ -> {}
+                                            case $9T _ -> {}
+                                        }
+                                    }
+                                });
                                 """,
                         HashMap.class,
                         ArrayList.class,
-                        names.pairName()
+                        names.pairName(),
+                        BooleanSupplier.class,
+                        names.rule().action().transitionTo(),
+                        names.dataTypeName(),
+                        names.rule().condition().always(),
+                        names.rule().condition().when(),
+                        names.rule().condition().after()
                 )
                 .build()
         );

@@ -152,11 +152,8 @@ public class BasicEnumStateMachineTest {
     void transitionsStack() {
         var machine = new BasicEnumStateMachine(BasicEnum.START);
 
-        machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
-                .run(Actions.runOnce(() -> machine.transitionTo(BasicEnum.STATE_B)));
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).run(Actions.runOnce(() -> machine.transitionTo(BasicEnum.STATE_B)));
 
         // Ensure creating the command didn't do anything
         assertEquals(BasicEnum.START, machine.currentState());
@@ -171,11 +168,8 @@ public class BasicEnumStateMachineTest {
     void transitionToShortcut() {
         var machine = new BasicEnumStateMachine(BasicEnum.START);
 
-        machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
-                .transitionTo(BasicEnum.STATE_B);
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionTo(BasicEnum.STATE_B);
 
         // Ensure creating the command didn't do anything
         assertEquals(BasicEnum.START, machine.currentState());
@@ -218,11 +212,8 @@ public class BasicEnumStateMachineTest {
         final AtomicBoolean second = new AtomicBoolean(false);
 
         // Set up two commands on the same transition
-        machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
-                .run(Actions.runOnce(() -> first.set(true)));
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).run(Actions.runOnce(() -> first.set(true)));
 
         machine
                 .state(BasicEnum.START)

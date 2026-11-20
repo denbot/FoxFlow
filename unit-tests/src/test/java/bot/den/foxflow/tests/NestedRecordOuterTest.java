@@ -68,11 +68,15 @@ public class NestedRecordOuterTest {
     void runCommandOnNestedRecordTransition() {
         final AtomicBoolean test = new AtomicBoolean(false);
 
-        // Set up transition with command
+        // Set up transition and command
         this.machine
                 .state(new NestedRecordOuter.NestedRecord(MultiStateEnum.A))
                 .to(new NestedRecordOuter.NestedRecord(MultiStateEnum.B))
-                .transitionAlways()
+                .transitionAlways();
+
+        this.machine
+                .state(new NestedRecordOuter.NestedRecord(MultiStateEnum.A))
+                .to(new NestedRecordOuter.NestedRecord(MultiStateEnum.B))
                 .run(Actions.runOnce(() -> test.set(true)));
 
         machine.poll();

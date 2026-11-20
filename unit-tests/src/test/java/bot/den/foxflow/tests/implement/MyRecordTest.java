@@ -83,11 +83,8 @@ public class MyRecordTest {
         final AtomicBoolean test = new AtomicBoolean(false);
 
         // Set up transition with command
-        machine
-                .state(Shapes.SQUARE)
-                .to(Shapes.CIRCLE)
-                .transitionAlways()
-                .run(Actions.runOnce(() -> test.set(true)));
+        machine.state(Shapes.SQUARE).to(Shapes.CIRCLE).transitionAlways();
+        machine.state(Shapes.SQUARE).to(Shapes.CIRCLE).run(Actions.runOnce(() -> test.set(true)));
 
         machine.poll();
 

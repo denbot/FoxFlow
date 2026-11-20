@@ -211,11 +211,8 @@ public class BasicRecordStateMachineTest {
         final AtomicBoolean commandRan = new AtomicBoolean(false);
 
         // Set up transition with run command
-        this.machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
-                .run(Actions.runOnce(() -> commandRan.set(true)));
+        this.machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        this.machine.state(BasicEnum.START).to(BasicEnum.STATE_A).run(Actions.runOnce(() -> commandRan.set(true)));
 
         // Set up failLoudly on the same transition
         this.machine
