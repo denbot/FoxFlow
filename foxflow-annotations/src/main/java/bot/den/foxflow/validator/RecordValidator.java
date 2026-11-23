@@ -173,16 +173,6 @@ public class RecordValidator implements Validator {
     }
 
     @Override
-    public ClassName pairClassName() {
-        return pairName;
-    }
-
-    @Override
-    public ClassName timeClassName() {
-        return timeName;
-    }
-
-    @Override
     public boolean supportsStateTransition() {
         // A record class supports state transitions only if any of its fields do.
         return supportsStateTransition.values().stream().anyMatch(v -> v);

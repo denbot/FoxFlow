@@ -38,16 +38,6 @@ public class InterfaceValidator implements Validator {
     }
 
     @Override
-    public ClassName pairClassName() {
-        return pairName;
-    }
-
-    @Override
-    public TypeName timeClassName() {
-        return timeName;
-    }
-
-    @Override
     public boolean supportsStateTransition() {
         // All interface classes support transition because we create a new data wrapper
         return true;

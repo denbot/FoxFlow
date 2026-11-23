@@ -3,7 +3,7 @@ package bot.den.foxflow.builders.classes;
 import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.LimitsStateTransitions;
-import bot.den.foxflow.Util;
+import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.RecordValidator;
@@ -47,8 +47,6 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         addTransitionMethods();
         addNumElementsMethod();
 
-        addPairType();
-        addTimeType();
         addNestedTypes();
     }
 
@@ -313,34 +311,6 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                 .methodBuilder("numElements")
                 .addModifiers(Modifier.PUBLIC, Modifier.ABSTRACT)
                 .returns(int.class)
-                .build());
-    }
-
-    private void addPairType() {
-        MethodSpec dataConstructor = MethodSpec
-                .constructorBuilder()
-                .addParameter(validator.wrappedClassName(), "a")
-                .addParameter(validator.wrappedClassName(), "b")
-                .build();
-
-        builder.addType(TypeSpec
-                .recordBuilder(validator.pairClassName())
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                .recordConstructor(dataConstructor)
-                .build());
-    }
-
-    private void addTimeType() {
-        MethodSpec dataConstructor = MethodSpec
-                .constructorBuilder()
-                .addParameter(validator.wrappedClassName(), "data")
-                .addParameter(Time.class, "time")
-                .build();
-
-        builder.addType(TypeSpec
-                .recordBuilder(validator.timeClassName())
-                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
-                .recordConstructor(dataConstructor)
                 .build());
     }
 

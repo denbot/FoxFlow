@@ -44,6 +44,18 @@ public class StateMachineGenerator {
             }
         }
 
+        // Pair class
+        this.environment.writeType(
+                names.pairName().packageName(),
+                new PairBuilder(names).build()
+        );
+
+        // Time class
+        this.environment.writeType(
+                names.timeName().packageName(),
+                new TimeBuilder(names).build()
+        );
+
         // LimitedTo class
         this.environment.writeType(
                 names.limitedToClassName().packageName(),

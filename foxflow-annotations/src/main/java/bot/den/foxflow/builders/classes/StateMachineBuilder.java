@@ -172,7 +172,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                 ClassName.get(BooleanSupplier.class),
                 ParameterizedTypeName.get(
                         ClassName.get(List.class),
-                        validator.pairClassName()
+                        names.pairName()
                 )
         );
 
@@ -279,7 +279,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         var timeLimitMapType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 names.dataTypeName(),
-                validator.timeClassName()
+                names.timeName()
         );
 
         builder.addField(FieldSpec
@@ -302,7 +302,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         );
 
         builder.addField(FieldSpec
-                .builder(validator.timeClassName(), "timeLimitCache")
+                .builder(names.timeName(), "timeLimitCache")
                 .addModifiers(Modifier.PRIVATE)
                 .build()
         );
@@ -594,11 +594,11 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     private void addGetNextStateMethod() {
         var pairList = ParameterizedTypeName.get(
                 ClassName.get(List.class),
-                validator.pairClassName()
+                names.pairName()
         );
         var pairSet = ParameterizedTypeName.get(
                 ClassName.get(Set.class),
-                validator.pairClassName()
+                names.pairName()
         );
 
         MethodSpec.Builder getNextStateMethodBuilder = MethodSpec
@@ -616,22 +616,19 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                     }
                                 }
                                 
-                                if(this.timerCache != null && this.timerCache.hasElapsed(this.timeLimitCache.$5L())) {
-                                    possibleOptions.add(new $4T(this.timerFromStateCache, this.timeLimitCache.$6L()));
+                                if(this.timerCache != null && this.timerCache.hasElapsed(this.timeLimitCache.time())) {
+                                    possibleOptions.add(new $3T(this.timerFromStateCache, this.timeLimitCache.data()));
                                 }
                                 
                                 if(possibleOptions.isEmpty()) {
                                     return null;
                                 } else if(possibleOptions.size() == 1) {
-                                    return possibleOptions.get(0).$3L();
+                                    return possibleOptions.get(0).b();
                                 }
                                 """,
                         pairList,
                         ArrayList.class,
-                        validator instanceof EnumValidator ? "getSecond" : "b",
-                        validator.pairClassName(),
-                        validator instanceof EnumValidator ? "getSecond" : "time",
-                        validator instanceof EnumValidator ? "getFirst" : "data"
+                        names.pairName()
                 );
 
 
@@ -690,7 +687,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                     """,
                             pairList,
                             ArrayList.class,
-                            validator.pairClassName(),
+                            names.pairName(),
                             pairSet,
                             HashSet.class
                     );
@@ -864,7 +861,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                 """,
                         HashMap.class,
                         ArrayList.class,
-                        validator.pairClassName()
+                        names.pairName()
                 )
                 .build()
         );
@@ -945,8 +942,8 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                     var timeLimit = timeLimitMap.get(subData);
                                 
                                     // If we have no time limit yet or this new time limit is shorter than our current one
-                                    boolean setCache = this.timeLimitCache == null || this.timeLimitCache.$1L().gt(timeLimit.$1L());
-                                    $2L
+                                    boolean setCache = this.timeLimitCache == null || this.timeLimitCache.time().gt(timeLimit.time());
+                                    $1L
                                     if(setCache) {
                                         this.timerCache = timerMap.get(subData);
                                         this.timeLimitCache = timeLimitMap.get(subData);
@@ -954,7 +951,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                     }
                                 }
                                 """,
-                        validator instanceof EnumValidator ? "getSecond" : "time",
                         timerCacheNumElementsLimiter
                 )
                 .build()
