@@ -84,7 +84,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                                     throw new $4T(
                                             fromState,
                                             toState,
-                                            $1T.this.timeLimitMap.get(fromState).$5L()
+                                            $1T.this.timeLimitMap.get(fromState).data()
                                     );
                                 }
                                 
@@ -98,10 +98,9 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                                 }
                                 """,
                         names.stateMachineClassName(),
-                        names.validator().timeClassName(),
+                        names.timeName(),
                         Timer.class,
-                        AmbiguousTransitionSetup.class,
-                        names.validator() instanceof EnumValidator ? "getFirst" : "data")
+                        AmbiguousTransitionSetup.class)
                 .build()
         );
     }

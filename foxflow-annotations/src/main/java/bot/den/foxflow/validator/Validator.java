@@ -9,10 +9,6 @@ public interface Validator {
 
     ClassName wrappedClassName();
 
-    TypeName pairClassName();
-
-    TypeName timeClassName();
-
     boolean supportsStateTransition();
 
     <R> FieldHelper<R> newFieldHelper();

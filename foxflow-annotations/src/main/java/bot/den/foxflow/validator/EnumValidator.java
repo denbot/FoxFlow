@@ -63,24 +63,6 @@ public class EnumValidator implements Validator {
     }
 
     @Override
-    public TypeName pairClassName() {
-        return ParameterizedTypeName.get(
-                ClassName.get(Pair.class),
-                originalTypeName,
-                originalTypeName
-        );
-    }
-
-    @Override
-    public TypeName timeClassName() {
-        return ParameterizedTypeName.get(
-                ClassName.get(Pair.class),
-                originalTypeName,
-                ClassName.get(Time.class)
-        );
-    }
-
-    @Override
     public boolean supportsStateTransition() {
         return implementsStateTransitionInterface;
     }

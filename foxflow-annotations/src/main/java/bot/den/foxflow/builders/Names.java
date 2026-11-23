@@ -23,6 +23,8 @@ public record Names(
         ClassName toClassName,
         ClassName dataTypeName,
         ClassName robotStateName,
+        ClassName pairName,
+        ClassName timeName,
 
         // Support for features
         CommandsV2 commandsV2,
@@ -74,6 +76,8 @@ public record Names(
                 ClassName.get(obfuscatedPackageName, "To"),
                 dataTypeName(validator),
                 ClassName.get(RobotState.class),
+                ClassName.get(obfuscatedPackageName, "Pair"),
+                ClassName.get(obfuscatedPackageName, "Time"),
                 hasCommandsV2 ? commandsV2 : null,
                 commandType,
                 commandListType
