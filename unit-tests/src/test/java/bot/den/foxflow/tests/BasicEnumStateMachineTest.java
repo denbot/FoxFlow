@@ -1,6 +1,7 @@
 package bot.den.foxflow.tests;
 
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
+import bot.den.foxflow.exceptions.DuplicateTimeSetup;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -351,13 +352,13 @@ public class BasicEnumStateMachineTest {
     }
 
     @Test
-    void transitionAfterAmbiguousStateTransitionCannotBeSetup() {
+    void transitionAfterDuplicateTimeTransitionCannotBeSetup() {
         var machine = new BasicEnumStateMachine(BasicEnum.STATE_A);
 
         machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_B).transitionAfter(Seconds.of(5));
 
         assertThrows(
-                AmbiguousTransitionSetup.class,
+                DuplicateTimeSetup.class,
                 () -> machine.state(BasicEnum.STATE_A).to(BasicEnum.STATE_C).transitionAfter(Seconds.of(1))
         );
     }

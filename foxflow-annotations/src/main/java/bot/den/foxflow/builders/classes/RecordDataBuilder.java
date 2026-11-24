@@ -3,13 +3,11 @@ package bot.den.foxflow.builders.classes;
 import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.LimitsStateTransitions;
-import bot.den.foxflow.builders.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.RecordValidator;
 import com.palantir.javapoet.*;
 import org.wpilib.util.Pair;
-import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
 import java.util.*;

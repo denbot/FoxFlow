@@ -4,6 +4,7 @@ import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
+import bot.den.foxflow.exceptions.DuplicateTimeSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
 import bot.den.foxflow.validator.EnumValidator;
@@ -29,7 +30,6 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addModifiers(Modifier.PUBLIC);
 
         addAddRuleMethod();
-        addAfterMethod();
         addRunMethod();
         addFailLoudlyMethod();
         addTriggerMethod();
@@ -45,53 +45,37 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addCode("""
                         $1T.this.verifyFromStateEnabled(fromState);
                         
-                        if(!$1T.this.transitionRules.containsKey(fromState)) {
-                            $1T.this.transitionRules.put(fromState, new $2T<>());
+                        $1T.this.transitionRules.computeIfAbsent(fromState, _ -> new $2T<>());
+
+                        if(rule.condition() instanceof $3T after) {
+                            for(var otherRule : $1T.this.transitionRules.get(fromState)) {
+                                if(otherRule.condition() instanceof $3T otherAfter) {
+                                    throw new $4T(
+                                            fromState,
+                                            otherAfter.time(),
+                                            after.time()
+                                    );
+                                }
+                            }
+
+                            $1T.this.timerMap.put(fromState, new $5T());
                         }
                         
                         $1T.this.transitionRules.get(fromState).add(rule);
                         
                         if($1T.this.currentSubData.contains(fromState)) {
-                            $1T.this.regenerateTransitionWhenCache();
+                            $1T.this.regenerateTransitionCaches();
+
+                            if($1T.this.timerMap.containsKey(fromState)) {
+                                $1T.this.timerMap.get(fromState).start();
+                            }
                         }
                         """,
                         names.stateMachineClassName(),
-                        ArrayList.class)
-                .build()
-        );
-    }
-
-    private void addAfterMethod() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("transitionAfter")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(names.dataTypeName(), "fromState")
-                .addParameter(names.dataTypeName(), "toState")
-                .addParameter(Time.class, "time")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                
-                                if($1T.this.timeLimitMap.containsKey(fromState)) {
-                                    throw new $4T(
-                                            fromState,
-                                            toState,
-                                            $1T.this.timeLimitMap.get(fromState).data()
-                                    );
-                                }
-                                
-                                var timeRecord = new $2T(toState, time);
-                                $1T.this.timeLimitMap.put(fromState, timeRecord);
-                                $1T.this.timerMap.put(fromState, new $3T());
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateTimerCache();
-                                    $1T.this.timerMap.get(fromState).start();
-                                }
-                                """,
-                        names.stateMachineClassName(),
-                        names.timeName(),
-                        Timer.class,
-                        AmbiguousTransitionSetup.class)
+                        ArrayList.class,
+                        names.rule().condition().after(),
+                        DuplicateTimeSetup.class,
+                        Timer.class)
                 .build()
         );
     }
@@ -283,10 +267,9 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                                 
                                 runTransitionCommands(nextToStates);
                                 
-                                regenerateTransitionWhenCache();
+                                regenerateTransitionCaches();
                                 regenerateCommandCache();
                                 regenerateFailLoudlyCache();
-                                regenerateTimerCache();
                                 """,
                         Collections.class,
                         FailLoudlyException.class,

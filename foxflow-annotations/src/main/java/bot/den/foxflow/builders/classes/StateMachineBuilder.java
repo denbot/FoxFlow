@@ -21,6 +21,7 @@ import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.networktables.StringPublisher;
 import org.wpilib.networktables.StringTopic;
 import org.wpilib.system.Timer;
+import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
@@ -270,19 +271,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
         builder.addField(FieldSpec
                 .builder(timerMapType, "timerMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
-        var timeLimitMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                names.timeName()
-        );
-
-        builder.addField(FieldSpec
-                .builder(timeLimitMapType, "timeLimitMap")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer("new $T<>()", HashMap.class)
                 .build()
@@ -836,11 +824,24 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addRegenerateMethods() {
+        CodeBlock timerCacheNumElementsLimiter;
+
+        if (validator instanceof RecordValidator) {
+            timerCacheNumElementsLimiter = CodeBlock.builder()
+                    .addStatement("setCache = setCache || this.timeLimitCache.time().equals(time) && this.timerFromStateCache.numElements() < state.numElements()")
+                    .build();
+        } else {
+            timerCacheNumElementsLimiter = CodeBlock.builder().build();
+        }
+
         builder.addMethod(MethodSpec
-                .methodBuilder("regenerateTransitionWhenCache")
+                .methodBuilder("regenerateTransitionCaches")
                 .addModifiers(Modifier.PRIVATE)
                 .addCode("""
                                 this.transitionWhenCache = new $1T<>();
+                                this.timerCache = null;
+                                this.timeLimitCache = null;
+                                this.timerFromStateCache = null;
                                 
                                 this.currentSubData.forEach(state -> {
                                     if (!this.transitionRules.containsKey(state)) {
@@ -848,23 +849,31 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                     }
                                 
                                     for (var rule : this.transitionRules.get(state)) {
-                                        if(! (rule.action() instanceof $5T($6T data))) {
-                                            return;
-                                        }
+                                        if(rule.action() instanceof $5T($6T data)) {
+                                            switch(rule.condition()) {
+                                                case $7T _ -> {
+                                                    $4T supplier = () -> true;
+                                                    this.transitionWhenCache
+                                                        .computeIfAbsent(supplier, _ -> new $2T<>())
+                                                        .add(new $3T(state, data));
+                                                }
+                                                case $8T($4T supplier) -> {
+                                                    this.transitionWhenCache
+                                                        .computeIfAbsent(supplier, _ -> new $2T<>())
+                                                        .add(new $3T(state, data));
+                                                }
+                                                case $9T($10T time) -> {
+                                                    // If we have no time limit yet or this new time limit is shorter than our current one
+                                                    boolean setCache = this.timeLimitCache == null || this.timeLimitCache.time().gt(time);
+                                                    $12L
 
-                                        switch(rule.condition()) {
-                                            case $7T _ -> {
-                                                $4T supplier = () -> true;
-                                                this.transitionWhenCache
-                                                    .computeIfAbsent(supplier, _ -> new $2T<>())
-                                                    .add(new $3T(state, data));
+                                                    if(setCache) {
+                                                        this.timerCache = timerMap.get(state);
+                                                        this.timeLimitCache = new $11T(data, time);
+                                                        this.timerFromStateCache = state;
+                                                    }
+                                                }
                                             }
-                                            case $8T($4T supplier) -> {
-                                                this.transitionWhenCache
-                                                    .computeIfAbsent(supplier, _ -> new $2T<>())
-                                                    .add(new $3T(state, data));
-                                            }
-                                            case $9T _ -> {}
                                         }
                                     }
                                 });
@@ -877,7 +886,10 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                         names.dataTypeName(),
                         names.rule().condition().always(),
                         names.rule().condition().when(),
-                        names.rule().condition().after()
+                        names.rule().condition().after(),
+                        Time.class,
+                        names.timeName(),
+                        timerCacheNumElementsLimiter
                 )
                 .build()
         );
@@ -929,46 +941,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                 });
                                 """,
                         HashSet.class)
-                .build()
-        );
-
-        CodeBlock timerCacheNumElementsLimiter;
-
-        if (validator instanceof RecordValidator) {
-            timerCacheNumElementsLimiter = CodeBlock.builder()
-                    .addStatement("setCache = setCache || this.timeLimitCache.time().equals(timeLimit.time()) && this.timerFromStateCache.numElements() < timeLimit.data().numElements()")
-                    .build();
-        } else {
-            timerCacheNumElementsLimiter = CodeBlock.builder().build();
-        }
-
-        builder.addMethod(MethodSpec
-                .methodBuilder("regenerateTimerCache")
-                .addModifiers(Modifier.PRIVATE)
-                .addCode("""
-                                this.timerCache = null;
-                                this.timeLimitCache = null;
-                                this.timerFromStateCache = null;
-                                
-                                for(var subData : this.currentSubData) {
-                                    if(! timerMap.containsKey(subData)) {
-                                        continue;
-                                    }
-                                
-                                    var timeLimit = timeLimitMap.get(subData);
-                                
-                                    // If we have no time limit yet or this new time limit is shorter than our current one
-                                    boolean setCache = this.timeLimitCache == null || this.timeLimitCache.time().gt(timeLimit.time());
-                                    $1L
-                                    if(setCache) {
-                                        this.timerCache = timerMap.get(subData);
-                                        this.timeLimitCache = timeLimitMap.get(subData);
-                                        this.timerFromStateCache = subData;
-                                    }
-                                }
-                                """,
-                        timerCacheNumElementsLimiter
-                )
                 .build()
         );
     }

@@ -78,8 +78,7 @@ public class ToBuilder implements TypedBuilder<TypeSpec> {
                 .methodBuilder("transitionAfter")
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(double.class, "seconds")
-                .returns(names.toClassName())
-                .addStatement("return transitionAfter($T.Seconds.of(seconds))", Units.class)
+                .addStatement("transitionAfter($T.Seconds.of(seconds))", Units.class)
                 .build()
         );
 
@@ -87,9 +86,13 @@ public class ToBuilder implements TypedBuilder<TypeSpec> {
                 .methodBuilder("transitionAfter")
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(Time.class, "time")
-                .returns(names.toClassName())
-                .addStatement("this.manager.transitionAfter(this.fromState, this.toState, time)")
-                .addStatement("return this")
+                .addCode("""
+                        var rule = new $1T(new $2T(time), new $3T(toState));
+                        this.manager.addRule(fromState, rule);
+                        """,
+                        names.rule().name(),
+                        names.rule().condition().after(),
+                        names.rule().action().transitionTo())
                 .build()
         );
     }
