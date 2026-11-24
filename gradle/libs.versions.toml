@@ -1,0 +1,18 @@
+[versions]
+wpilib = "2027.0.0-alpha-7"
+
+[libraries]
+wpilib-hal = { module = "org.wpilib.hal:hal-java", version.ref = "wpilib" }
+wpilib-wpilibj = { module = "org.wpilib.wpilibj:wpilibj-java", version.ref = "wpilib" }
+wpilib-wpiutil = { module = "org.wpilib.wpiutil:wpiutil-java", version.ref = "wpilib" }
+wpilib-wpimath = { module = "org.wpilib.wpimath:wpimath-java", version.ref = "wpilib" }
+wpilib-wpiunits = { module = "org.wpilib.wpiunits:wpiunits-java", version.ref = "wpilib" }
+wpilib-ntcore = { module = "org.wpilib.ntcore:ntcore-java", version.ref = "wpilib" }
+wpilib-telemetry = { module = "org.wpilib.telemetry:telemetry-java", version.ref = "wpilib" }
+wpilib-tunables = { module = "org.wpilib.tunables:tunables-java", version.ref = "wpilib" }
+
+[bundles]
+wpilib = ["wpilib-hal", "wpilib-wpilibj", "wpilib-wpiutil", "wpilib-wpimath", "wpilib-wpiunits", "wpilib-ntcore", "wpilib-telemetry", "wpilib-tunables"]
+
+[plugins]
+gradlerio = { id = "org.wpilib.GradleRIO", version.ref = "wpilib" }
