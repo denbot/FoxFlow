@@ -12,21 +12,12 @@ repositories {
 }
 wpilibRepositories.addAllReleaseRepositories(project)
 
-val wpilibVersion = "2027.0.0-alpha-7"
-
 dependencies {
     implementation("com.palantir.javapoet:javapoet:0.9.0")
 
     implementation(project(":foxflow"))
 
-    implementation("org.wpilib.hal:hal-java:${wpilibVersion}")
-    implementation("org.wpilib.wpilibj:wpilibj-java:${wpilibVersion}")
-    implementation("org.wpilib.wpiutil:wpiutil-java:${wpilibVersion}")
-    implementation("org.wpilib.wpimath:wpimath-java:${wpilibVersion}")
-    implementation("org.wpilib.wpiunits:wpiunits-java:${wpilibVersion}")
-    implementation("org.wpilib.ntcore:ntcore-java:${wpilibVersion}")
-    implementation("org.wpilib.telemetry:telemetry-java:${wpilibVersion}")
-    implementation("org.wpilib.tunables:tunables-java:${wpilibVersion}")
+    implementation(libs.bundles.wpilib)
 }
 
 java {

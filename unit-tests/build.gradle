@@ -3,7 +3,7 @@ import javax.tools.ToolProvider
 plugins {
     id "java"
     id "application"
-    id "org.wpilib.GradleRIO" version "2027.0.0-alpha-7"
+    alias(libs.plugins.gradlerio)
 }
 
 java {
