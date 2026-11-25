@@ -32,10 +32,8 @@ public class BasicEnumStateMachineRunnableTest {
         final AtomicInteger test = new AtomicInteger(0);
 
         // Set up our state machine transition. Always run to trigger the move to a Command
-        machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A)
                 .run(
                         // run instead of runOnce would normally have the command run on every loop.
                         // Since we only have the Runnable, we only guarantee it runs once.

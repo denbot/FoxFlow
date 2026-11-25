@@ -2,7 +2,8 @@ package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
-import bot.den.foxflow.builders.Names;
+import bot.den.foxflow.builders.HasClassName;
+import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.builders.methods.TransitionToBuilder;
@@ -13,7 +14,7 @@ import com.palantir.javapoet.*;
 import javax.lang.model.element.Modifier;
 import java.util.List;
 
-public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
+public class LimitedToBuilder implements TypedBuilder<TypeSpec>, HasClassName {
     private final TypeSpec.Builder builder;
     private final Names names;
 
@@ -77,7 +78,13 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
                 .methodBuilder("run")
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(this.names.commandTypeName(), "command")
-                .addStatement("this.manager.run(this.fromState, this.toState, command)")
+                .addCode("""
+                        var rule = new $1T(new $2T(toState), new $3T(command));
+                        this.manager.addRule(fromState, rule);
+                        """,
+                        names.rule().name(),
+                        names.rule().condition().onTransition(),
+                        names.rule().action().runCommand())
                 .build()
         );
     }
@@ -86,7 +93,13 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
         builder.addMethod(MethodSpec
                 .methodBuilder("failLoudly")
                 .addModifiers(Modifier.PUBLIC)
-                .addStatement("this.manager.failLoudly(this.fromState, this.toState)")
+                .addCode("""
+                        var rule = new $1T(new $2T(toState), new $3T());
+                        this.manager.addRule(fromState, rule);
+                        """,
+                        names.rule().name(),
+                        names.rule().condition().onTransition(),
+                        names.rule().action().failLoudly())
                 .build()
         );
     }
@@ -138,5 +151,10 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
     @Override
     public TypeSpec build() {
         return builder.build();
+    }
+
+    @Override
+    public ClassName className() {
+        return names.limitedToClassName();
     }
 }

@@ -5,7 +5,8 @@ import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.FieldHelper;
-import bot.den.foxflow.builders.Names;
+import bot.den.foxflow.builders.HasClassName;
+import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.builders.methods.TransitionToBuilder;
@@ -21,6 +22,7 @@ import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.networktables.StringPublisher;
 import org.wpilib.networktables.StringTopic;
 import org.wpilib.system.Timer;
+import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
@@ -30,7 +32,7 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
+public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName {
     private final TypeSpec.Builder builder;
     private final Names names;
     private final Validator validator;
@@ -74,11 +76,10 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         addManagerField();
         addCurrentDataFields();
         addNetworkTablesFields();
-        addTransitionWhenFields();
-        addCommandFields();
-        addFailLoudlyFields();
+        addTransitionRuleFields();
+        addRuntimeCacheFields();
         addTriggerFields();
-        addTimerFields();
+        addTimerMapField();
         addEnableFields();
         addControlWordFields();
 
@@ -98,6 +99,29 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         addRegenerateMethods();
 
         builder.addType(new StateManagerBuilder(names).build());
+    }
+
+    private void addTimerMapField() {
+        var timerMapType = ParameterizedTypeName.get(
+                ClassName.get(Map.class),
+                names.dataTypeName(),
+                ClassName.get(org.wpilib.system.Timer.class)
+        );
+
+        builder.addField(FieldSpec
+                .builder(timerMapType, "timerMap")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T<>()", HashMap.class)
+                .build()
+        );
+    }
+
+    private void addRuntimeCacheFields() {
+        builder.addField(FieldSpec
+                .builder(names.runtimeCacheName(), "runtimeCache")
+                .addModifiers(Modifier.PRIVATE)
+                .build()
+        );
     }
 
     private void addManagerField() {
@@ -146,107 +170,26 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
         );
     }
 
-    private void addTransitionWhenFields() {
-        var transitionWhenMapType = ParameterizedTypeName.get(
+    private void addTransitionRuleFields() {
+        var transitionRuleMapType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 names.dataTypeName(),
-                ParameterizedTypeName.get(
-                        ClassName.get(Map.class),
-                        names.dataTypeName(),
-                        ParameterizedTypeName.get(
-                                List.class,
-                                BooleanSupplier.class
-                        )
-                )
-        );
-
-        builder.addField(FieldSpec
-                .builder(transitionWhenMapType, "transitionWhenMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
-        var transitionWhenCacheType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                ClassName.get(BooleanSupplier.class),
                 ParameterizedTypeName.get(
                         ClassName.get(List.class),
-                        names.pairName()
+                        names.rule().name()
                 )
         );
 
         builder.addField(FieldSpec
-                .builder(transitionWhenCacheType, "transitionWhenCache")
-                .addModifiers(Modifier.PRIVATE)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-    }
-
-    private void addCommandFields() {
-        var transitionCommandMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                ParameterizedTypeName.get(
-                        ClassName.get(Map.class),
-                        names.dataTypeName(),
-                        names.commandListType()
-                )
-        );
-
-        builder.addField(FieldSpec
-                .builder(transitionCommandMapType, "transitionCommandMap")
+                .builder(transitionRuleMapType, "transitionRules")
                 .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
                 .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
-        var transitionCommandCacheType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                names.commandListType()
-        );
-
-        builder.addField(FieldSpec
-                .builder(transitionCommandCacheType, "transitionCommandCache")
-                .addModifiers(Modifier.PRIVATE)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-    }
-
-    private void addFailLoudlyFields() {
-        var failLoudlyMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                ParameterizedTypeName.get(
-                        ClassName.get(Set.class),
-                        names.dataTypeName()
-                )
-        );
-        builder.addField(FieldSpec
-                .builder(failLoudlyMapType, "failLoudlyMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
-        var failLoudlyCacheType = ParameterizedTypeName.get(
-                ClassName.get(Set.class),
-                names.dataTypeName()
-        );
-
-        builder.addField(FieldSpec
-                .builder(failLoudlyCacheType, "failLoudlyCache")
-                .addModifiers(Modifier.PRIVATE)
-                .initializer("new $T<>()", HashSet.class)
                 .build()
         );
     }
 
     private void addTriggerFields() {
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.commandsV2() instanceof CommandsV2 commandsV2) {
             var triggerMapType = ParameterizedTypeName.get(
                     ClassName.get(Map.class),
                     names.dataTypeName(),
@@ -260,52 +203,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                     .build()
             );
         }
-    }
-
-    private void addTimerFields() {
-        var timerMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                ClassName.get(org.wpilib.system.Timer.class)
-        );
-
-        builder.addField(FieldSpec
-                .builder(timerMapType, "timerMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
-        var timeLimitMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                names.timeName()
-        );
-
-        builder.addField(FieldSpec
-                .builder(timeLimitMapType, "timeLimitMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
-        builder.addField(FieldSpec
-                .builder(Timer.class, "timerCache")
-                .addModifiers(Modifier.PRIVATE)
-                .build()
-        );
-
-        builder.addField(FieldSpec
-                .builder(names.dataTypeName(), "timerFromStateCache")
-                .addModifiers(Modifier.PRIVATE)
-                .build()
-        );
-
-        builder.addField(FieldSpec
-                .builder(names.timeName(), "timeLimitCache")
-                .addModifiers(Modifier.PRIVATE)
-                .build()
-        );
     }
 
     private void addEnableFields() {
@@ -350,9 +247,11 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                     .addParameter(validator.originalTypeName(), "initialState")
                     .addCode("""
                             this.currentState = initialState;
-                            this.currentSubData = this.generateToSubDataStates(initialState);
+                            this.currentSubData = this.generateFromSubDataStates(initialState);
+                            this.runtimeCache = new $1T(currentSubData, transitionRules);
                             currentStatePublisher.set(currentState.toString());
-                            """)
+                            """,
+                            names.runtimeCacheName())
                     .build();
         });
 
@@ -576,7 +475,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                     names.dataTypeName(),
                     rv.fieldToInnerClass.get(List.of(robotFieldOption.get())),
                     DriverStationBackend.class
-                    );
+            );
         }
 
         pollMethodBuilder.addCode(
@@ -608,16 +507,17 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                 .addComment("Map of our input specifiers to list of valid outputs")
                 .addCode("""
                                 $1T possibleOptions = new $2T<>();
-                                for(var entry : this.transitionWhenCache.entrySet()) {
+                                for(var entry : this.runtimeCache.transitionWhen.entrySet()) {
                                     var supplier = entry.getKey();
                                 
                                     if(supplier.getAsBoolean()) {
                                         possibleOptions.addAll(entry.getValue());
                                     }
                                 }
-                                
-                                if(this.timerCache != null && this.timerCache.hasElapsed(this.timeLimitCache.time())) {
-                                    possibleOptions.add(new $3T(this.timerFromStateCache, this.timeLimitCache.data()));
+
+                                var currentTimer = this.timerMap.get(this.runtimeCache.timerFromState);
+                                if(currentTimer != null && currentTimer.hasElapsed(this.runtimeCache.timeLimit.time())) {
+                                    possibleOptions.add(new $3T(this.runtimeCache.timerFromState, this.runtimeCache.timeLimit.data()));
                                 }
                                 
                                 if(possibleOptions.isEmpty()) {
@@ -700,15 +600,15 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
     private void addRunTransitionCommandsMethod() {
         CodeBlock runCommands;
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.commandsV2() instanceof CommandsV2 commandsV2) {
             runCommands = CodeBlock.of("""
-                    for(var command : transitionCommandCache.get(state)) {
+                    for(var command : runtimeCache.transitionCommand.get(state)) {
                         $1T.getInstance().schedule(command);
                     }
                     """, commandsV2.commandScheduler());
         } else {
             runCommands = CodeBlock.of("""
-                    for(var command : transitionCommandCache.get(state)) {
+                    for(var command : runtimeCache.transitionCommand.get(state)) {
                         command.run();
                     }
                     """);
@@ -720,7 +620,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                 .addParameter(subDataSetType, "nextStates")
                 .addCode("""
                         nextStates.forEach(state -> {
-                            if(! transitionCommandCache.containsKey(state)) {
+                            if(! runtimeCache.transitionCommand.containsKey(state)) {
                                 return;
                             }
                         
@@ -728,7 +628,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                         });
                         """, runCommands)
                 .build()
-            );
+        );
     }
 
     private void addVerifyStateEnabledCommands() {
@@ -838,121 +738,12 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
 
     private void addRegenerateMethods() {
         builder.addMethod(MethodSpec
-                .methodBuilder("regenerateTransitionWhenCache")
+                .methodBuilder("regenerateTransitionCaches")
                 .addModifiers(Modifier.PRIVATE)
                 .addCode("""
-                                this.transitionWhenCache = new $1T<>();
-                                
-                                this.currentSubData.forEach(state -> {
-                                    if (!this.transitionWhenMap.containsKey(state)) {
-                                        return;
-                                    }
-                                
-                                    for (var fromEntry : this.transitionWhenMap.get(state).entrySet()) {
-                                        for (var supplier : fromEntry.getValue()) {
-                                            if (!this.transitionWhenCache.containsKey(supplier)) {
-                                                this.transitionWhenCache.put(supplier, new $2T<>());
-                                            }
-                                
-                                            this.transitionWhenCache.get(supplier).add(new $3T(state, fromEntry.getKey()));
-                                        }
-                                    }
-                                });
-                                """,
-                        HashMap.class,
-                        ArrayList.class,
-                        names.pairName()
-                )
-                .build()
-        );
-
-        builder.addMethod(MethodSpec
-                .methodBuilder("regenerateCommandCache")
-                .addModifiers(Modifier.PRIVATE)
-                .addCode("""
-                                this.transitionCommandCache = new $1T<>();
-                                
-                                this.currentSubData.forEach(state -> {
-                                    if (!this.transitionCommandMap.containsKey(state)) {
-                                        return;
-                                    }
-                                
-                                    for(var entry : this.transitionCommandMap.get(state).entrySet()) {
-                                        var toState = entry.getKey();
-                                
-                                        $2T commandList;
-                                        if(this.transitionCommandCache.containsKey(toState)) {
-                                            commandList = this.transitionCommandCache.get(toState);
-                                        } else {
-                                            commandList = new $3T<>();
-                                            this.transitionCommandCache.put(toState, commandList);
-                                        }
-                                
-                                        commandList.addAll(entry.getValue());
-                                    }
-                                });
-                                """,
-                        HashMap.class,
-                        names.commandListType(),
-                        ArrayList.class)
-                .build()
-        );
-
-        builder.addMethod(MethodSpec
-                .methodBuilder("regenerateFailLoudlyCache")
-                .addModifiers(Modifier.PRIVATE)
-                .addCode("""
-                                this.failLoudlyCache = new $1T<>();
-                                
-                                this.currentSubData.forEach(state -> {
-                                    if (!this.failLoudlyMap.containsKey(state)) {
-                                        return;
-                                    }
-                                
-                                    this.failLoudlyCache.addAll(this.failLoudlyMap.get(state));
-                                });
-                                """,
-                        HashSet.class)
-                .build()
-        );
-
-        CodeBlock timerCacheNumElementsLimiter;
-
-        if (validator instanceof RecordValidator) {
-            timerCacheNumElementsLimiter = CodeBlock.builder()
-                    .addStatement("setCache = setCache || this.timeLimitCache.time().equals(timeLimit.time()) && this.timerFromStateCache.numElements() < timeLimit.data().numElements()")
-                    .build();
-        } else {
-            timerCacheNumElementsLimiter = CodeBlock.builder().build();
-        }
-
-        builder.addMethod(MethodSpec
-                .methodBuilder("regenerateTimerCache")
-                .addModifiers(Modifier.PRIVATE)
-                .addCode("""
-                                this.timerCache = null;
-                                this.timeLimitCache = null;
-                                this.timerFromStateCache = null;
-                                
-                                for(var subData : this.currentSubData) {
-                                    if(! timerMap.containsKey(subData)) {
-                                        continue;
-                                    }
-                                
-                                    var timeLimit = timeLimitMap.get(subData);
-                                
-                                    // If we have no time limit yet or this new time limit is shorter than our current one
-                                    boolean setCache = this.timeLimitCache == null || this.timeLimitCache.time().gt(timeLimit.time());
-                                    $1L
-                                    if(setCache) {
-                                        this.timerCache = timerMap.get(subData);
-                                        this.timeLimitCache = timeLimitMap.get(subData);
-                                        this.timerFromStateCache = subData;
-                                    }
-                                }
-                                """,
-                        timerCacheNumElementsLimiter
-                )
+                        this.runtimeCache = new $T(currentSubData, transitionRules);
+                        """,
+                        names.runtimeCacheName())
                 .build()
         );
     }
@@ -960,5 +751,10 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     @Override
     public TypeSpec build() {
         return builder.build();
+    }
+
+    @Override
+    public ClassName className() {
+        return names.stateMachineClassName();
     }
 }

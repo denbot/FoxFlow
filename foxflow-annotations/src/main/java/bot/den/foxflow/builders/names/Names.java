@@ -1,4 +1,4 @@
-package bot.den.foxflow.builders;
+package bot.den.foxflow.builders.names;
 
 import bot.den.foxflow.Environment;
 import bot.den.foxflow.RobotState;
@@ -25,6 +25,10 @@ public record Names(
         ClassName robotStateName,
         ClassName pairName,
         ClassName timeName,
+        ClassName runtimeCacheName,
+
+        // Sub-names for deeply nested classes
+        Rule rule,
 
         // Support for features
         CommandsV2 commandsV2,
@@ -67,6 +71,7 @@ public record Names(
                 commandType
         );
 
+        ClassName dataTypeName = dataTypeName(validator);
         this(
                 validator,
                 stateMachineClassName,
@@ -74,10 +79,12 @@ public record Names(
                 ClassName.get(obfuscatedPackageName, "From"),
                 ClassName.get(obfuscatedPackageName, "LimitedTo"),
                 ClassName.get(obfuscatedPackageName, "To"),
-                dataTypeName(validator),
+                dataTypeName,
                 ClassName.get(RobotState.class),
                 ClassName.get(obfuscatedPackageName, "Pair"),
                 ClassName.get(obfuscatedPackageName, "Time"),
+                ClassName.get(obfuscatedPackageName, "RuntimeCache"),
+                new Rule(obfuscatedPackageName),
                 hasCommandsV2 ? commandsV2 : null,
                 commandType,
                 commandListType

@@ -37,10 +37,8 @@ public class BasicEnumStateMachineCommandsV2Test {
         final AtomicBoolean test = new AtomicBoolean(false);
 
         // Set up our state machine transition. Always run to trigger the move to a Command
-        machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A)
                 .run(
                         Actions.runOnce(() -> test.set(true))
                 );
@@ -65,10 +63,8 @@ public class BasicEnumStateMachineCommandsV2Test {
         final AtomicBoolean test = new AtomicBoolean(false);
 
         // Set up our state machine transition. Always run to trigger the move to a Command
-        machine
-                .state(BasicEnum.START)
-                .to(BasicEnum.STATE_A)
-                .transitionAlways()
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A).transitionAlways();
+        machine.state(BasicEnum.START).to(BasicEnum.STATE_A)
                 .run(
                         Actions.run(() -> test.set(true))
                 );
