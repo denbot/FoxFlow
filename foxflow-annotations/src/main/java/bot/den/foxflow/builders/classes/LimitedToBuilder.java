@@ -77,7 +77,13 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
                 .methodBuilder("run")
                 .addModifiers(Modifier.PUBLIC)
                 .addParameter(this.names.commandTypeName(), "command")
-                .addStatement("this.manager.run(this.fromState, this.toState, command)")
+                .addCode("""
+                        var rule = new $1T(new $2T(toState), new $3T(command));
+                        this.manager.addRule(fromState, rule);
+                        """,
+                        names.rule().name(),
+                        names.rule().condition().onTransition(),
+                        names.rule().action().runCommand())
                 .build()
         );
     }

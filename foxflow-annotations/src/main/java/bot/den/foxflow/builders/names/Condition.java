@@ -6,7 +6,8 @@ public record Condition(
         ClassName name,
         ClassName always,
         ClassName when,
-        ClassName after
+        ClassName after,
+        ClassName onTransition
 ) {
     public Condition(
             ClassName name
@@ -15,7 +16,8 @@ public record Condition(
                 name,
                 name.nestedClass("Always"),
                 name.nestedClass("When"),
-                name.nestedClass("After")
+                name.nestedClass("After"),
+                name.nestedClass("OnTransition")
         );
     }
 }

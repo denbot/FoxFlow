@@ -21,7 +21,7 @@ public class RuleBuilder implements TypedBuilder<TypeSpec> {
 
         addConstructor();
 
-        builder.addType(new ConditionBuilder(rule.condition()).build());
+        builder.addType(new ConditionBuilder(names).build());
         builder.addType(new ActionBuilder(
                 rule.action(),
                 names.dataTypeName(),

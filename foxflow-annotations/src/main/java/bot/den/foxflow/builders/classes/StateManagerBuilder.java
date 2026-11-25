@@ -30,7 +30,6 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addModifiers(Modifier.PUBLIC);
 
         addAddRuleMethod();
-        addRunMethod();
         addFailLoudlyMethod();
         addTriggerMethod();
         addUpdateStateMethod();
@@ -47,18 +46,20 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                         
                         $1T.this.transitionRules.computeIfAbsent(fromState, _ -> new $2T<>());
 
-                        if(rule.condition() instanceof $3T after) {
+                        if(rule.condition() instanceof $3T($6T time)) {
                             for(var otherRule : $1T.this.transitionRules.get(fromState)) {
-                                if(otherRule.condition() instanceof $3T otherAfter) {
+                                if(otherRule.condition() instanceof $3T($6T otherTime)) {
                                     throw new $4T(
                                             fromState,
-                                            otherAfter.time(),
-                                            after.time()
+                                            time,
+                                            otherTime
                                     );
                                 }
                             }
 
                             $1T.this.timerMap.put(fromState, new $5T());
+                        } else if(rule.condition() instanceof $7T($8T toState)) {
+                            $1T.this.verifyToStateEnabled(toState);
                         }
                         
                         $1T.this.transitionRules.get(fromState).add(rule);
@@ -75,40 +76,10 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                         ArrayList.class,
                         names.rule().condition().after(),
                         DuplicateTimeSetup.class,
-                        Timer.class)
-                .build()
-        );
-    }
-
-    private void addRunMethod() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("run")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(names.dataTypeName(), "fromState")
-                .addParameter(names.dataTypeName(), "toState")
-                .addParameter(names.commandTypeName(), "command")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                $1T.this.verifyToStateEnabled(toState);
-                                
-                                if(!$1T.this.transitionCommandMap.containsKey(fromState)) {
-                                    $1T.this.transitionCommandMap.put(fromState, new $2T<>());
-                                }
-                                
-                                var fromStateMap = $1T.this.transitionCommandMap.get(fromState);
-                                if(!fromStateMap.containsKey(toState)) {
-                                    fromStateMap.put(toState, new $3T<>());
-                                }
-                                
-                                fromStateMap.get(toState).add(command);
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateCommandCache();
-                                }
-                                """,
-                        names.stateMachineClassName(),
-                        HashMap.class,
-                        ArrayList.class)
+                        Timer.class,
+                        Time.class,
+                        names.rule().condition().onTransition(),
+                        names.dataTypeName())
                 .build()
         );
     }
@@ -268,7 +239,6 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                                 runTransitionCommands(nextToStates);
                                 
                                 regenerateTransitionCaches();
-                                regenerateCommandCache();
                                 regenerateFailLoudlyCache();
                                 """,
                         Collections.class,

@@ -185,23 +185,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addCommandFields() {
-        var transitionCommandMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                ParameterizedTypeName.get(
-                        ClassName.get(Map.class),
-                        names.dataTypeName(),
-                        names.commandListType()
-                )
-        );
-
-        builder.addField(FieldSpec
-                .builder(transitionCommandMapType, "transitionCommandMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
         var transitionCommandCacheType = ParameterizedTypeName.get(
                 ClassName.get(Map.class),
                 names.dataTypeName(),
@@ -337,7 +320,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                     .addParameter(validator.originalTypeName(), "initialState")
                     .addCode("""
                             this.currentState = initialState;
-                            this.currentSubData = this.generateToSubDataStates(initialState);
+                            this.currentSubData = this.generateFromSubDataStates(initialState);
                             currentStatePublisher.set(currentState.toString());
                             """)
                     .build();
@@ -842,6 +825,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                 this.timerCache = null;
                                 this.timeLimitCache = null;
                                 this.timerFromStateCache = null;
+                                this.transitionCommandCache = new $1T<>();
                                 
                                 this.currentSubData.forEach(state -> {
                                     if (!this.transitionRules.containsKey(state)) {
@@ -849,28 +833,43 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                     }
                                 
                                     for (var rule : this.transitionRules.get(state)) {
-                                        if(rule.action() instanceof $5T($6T data)) {
-                                            switch(rule.condition()) {
-                                                case $7T _ -> {
-                                                    $4T supplier = () -> true;
-                                                    this.transitionWhenCache
-                                                        .computeIfAbsent(supplier, _ -> new $2T<>())
-                                                        .add(new $3T(state, data));
-                                                }
-                                                case $8T($4T supplier) -> {
-                                                    this.transitionWhenCache
-                                                        .computeIfAbsent(supplier, _ -> new $2T<>())
-                                                        .add(new $3T(state, data));
-                                                }
-                                                case $9T($10T time) -> {
-                                                    // If we have no time limit yet or this new time limit is shorter than our current one
-                                                    boolean setCache = this.timeLimitCache == null || this.timeLimitCache.time().gt(time);
-                                                    $12L
+                                        switch(rule.action()) {
+                                            case $5T($6T data) -> {
+                                                switch(rule.condition()) {
+                                                    case $7T _ -> {
+                                                        $4T supplier = () -> true;
+                                                        this.transitionWhenCache
+                                                            .computeIfAbsent(supplier, _ -> new $2T<>())
+                                                            .add(new $3T(state, data));
+                                                    }
+                                                    case $8T($4T supplier) -> {
+                                                        this.transitionWhenCache
+                                                            .computeIfAbsent(supplier, _ -> new $2T<>())
+                                                            .add(new $3T(state, data));
+                                                    }
+                                                    case $9T($10T time) -> {
+                                                        // If we have no time limit yet or this new time limit is shorter than our current one
+                                                        boolean setCache = this.timeLimitCache == null || this.timeLimitCache.time().gt(time);
+                                                        $12L
 
-                                                    if(setCache) {
-                                                        this.timerCache = timerMap.get(state);
-                                                        this.timeLimitCache = new $11T(data, time);
-                                                        this.timerFromStateCache = state;
+                                                        if(setCache) {
+                                                            this.timerCache = timerMap.get(state);
+                                                            this.timeLimitCache = new $11T(data, time);
+                                                            this.timerFromStateCache = state;
+                                                        }
+                                                    }
+                                                    case $13T _ -> throw new $14T("Cannot combine TransitionTo action with OnTransition condition");
+                                                }
+                                            }
+                                            case $15T($16T command) -> {
+                                                switch(rule.condition()) {
+                                                    case $7T _ -> throw new $14T("Cannot combine RunCommand action with Always condition");
+                                                    case $8T _ -> throw new $14T("Cannot combine RunCommand action with When condition");
+                                                    case $9T _ -> throw new $14T("Cannot combine RunCommand action with After condition");
+                                                    case $13T($6T toState) -> {
+                                                        this.transitionCommandCache
+                                                            .computeIfAbsent(toState, _ -> new $2T<>())
+                                                            .add(command);
                                                     }
                                                 }
                                             }
@@ -889,40 +888,12 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                         names.rule().condition().after(),
                         Time.class,
                         names.timeName(),
-                        timerCacheNumElementsLimiter
+                        timerCacheNumElementsLimiter,
+                        names.rule().condition().onTransition(),
+                        UnsupportedOperationException.class,
+                        names.rule().action().runCommand(),
+                        names.commandTypeName()
                 )
-                .build()
-        );
-
-        builder.addMethod(MethodSpec
-                .methodBuilder("regenerateCommandCache")
-                .addModifiers(Modifier.PRIVATE)
-                .addCode("""
-                                this.transitionCommandCache = new $1T<>();
-                                
-                                this.currentSubData.forEach(state -> {
-                                    if (!this.transitionCommandMap.containsKey(state)) {
-                                        return;
-                                    }
-                                
-                                    for(var entry : this.transitionCommandMap.get(state).entrySet()) {
-                                        var toState = entry.getKey();
-                                
-                                        $2T commandList;
-                                        if(this.transitionCommandCache.containsKey(toState)) {
-                                            commandList = this.transitionCommandCache.get(toState);
-                                        } else {
-                                            commandList = new $3T<>();
-                                            this.transitionCommandCache.put(toState, commandList);
-                                        }
-                                
-                                        commandList.addAll(entry.getValue());
-                                    }
-                                });
-                                """,
-                        HashMap.class,
-                        names.commandListType(),
-                        ArrayList.class)
                 .build()
         );
 

@@ -2,6 +2,7 @@ package bot.den.foxflow.builders.classes.rules;
 
 import bot.den.foxflow.builders.names.Condition;
 import bot.den.foxflow.builders.TypedBuilder;
+import bot.den.foxflow.builders.names.Names;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;
 import org.wpilib.units.measure.Time;
@@ -10,17 +11,20 @@ import javax.lang.model.element.Modifier;
 import java.util.function.BooleanSupplier;
 
 public class ConditionBuilder implements TypedBuilder<TypeSpec> {
+    private final Names names;
     private final Condition condition;
     private final TypeSpec.Builder builder;
 
-    public ConditionBuilder(Condition condition) {
-        this.condition = condition;
+    public ConditionBuilder(Names names) {
+        this.names = names;
+        this.condition = names.rule().condition();
         builder = TypeSpec.interfaceBuilder(condition.name())
                 .addModifiers(Modifier.PUBLIC, Modifier.SEALED);
 
         addAlwaysRecord();
         addWhenRecord();
         addAfterRecord();
+        addOnTransitionRecord();
     }
 
     private void addAlwaysRecord() {
@@ -52,6 +56,20 @@ public class ConditionBuilder implements TypedBuilder<TypeSpec> {
                 .build();
 
         TypeSpec.Builder when = TypeSpec.recordBuilder(condition.after())
+                .addSuperinterface(condition.name())
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
+                .recordConstructor(constructor);
+
+        builder.addType(when.build());
+    }
+
+    private void addOnTransitionRecord() {
+        MethodSpec constructor = MethodSpec
+                .constructorBuilder()
+                .addParameter(names.dataTypeName(), "toState")
+                .build();
+
+        TypeSpec.Builder when = TypeSpec.recordBuilder(condition.onTransition())
                 .addSuperinterface(condition.name())
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .recordConstructor(constructor);
