@@ -52,6 +52,7 @@ public class StateMachineGenerator {
         generate(new LimitedToBuilder(names));
         generate(new ToBuilder(names));
         generate(new FromBuilder(names));
+        generate(new RuntimeCacheBuilder(names));
         generate(new StateMachineBuilder(names));
     }
 

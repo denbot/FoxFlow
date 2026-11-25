@@ -172,7 +172,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addCode("""
                                 var nextToStates = generateToSubDataStates(nextState);
                                 
-                                if(! $1T.disjoint(failLoudlyCache, nextToStates)) {
+                                if(! $1T.disjoint(runtimeCache.failLoudly, nextToStates)) {
                                     var failLoudly = new $2T("State transition was requested to fail loudly");
                                 
                                     throw new $3T(currentState, nextState, failLoudly);

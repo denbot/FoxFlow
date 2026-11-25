@@ -25,6 +25,7 @@ public record Names(
         ClassName robotStateName,
         ClassName pairName,
         ClassName timeName,
+        ClassName runtimeCacheName,
 
         // Sub-names for deeply nested classes
         Rule rule,
@@ -82,6 +83,7 @@ public record Names(
                 ClassName.get(RobotState.class),
                 ClassName.get(obfuscatedPackageName, "Pair"),
                 ClassName.get(obfuscatedPackageName, "Time"),
+                ClassName.get(obfuscatedPackageName, "RuntimeCache"),
                 new Rule(obfuscatedPackageName),
                 hasCommandsV2 ? commandsV2 : null,
                 commandType,
