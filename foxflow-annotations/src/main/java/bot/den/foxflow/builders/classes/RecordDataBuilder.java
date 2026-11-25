@@ -26,7 +26,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
         this.validator = validator;
         this.builder = TypeSpec
                 .interfaceBuilder(validator.wrappedClassName())
-                .addModifiers(Modifier.PUBLIC)
+                .addModifiers(Modifier.PUBLIC, Modifier.SEALED)
                 .addAnnotation(Generated.class);
 
         allFieldsPresentDataClass = validator.fieldToInnerClass.get(validator.fields);

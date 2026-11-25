@@ -1,9 +1,9 @@
 package bot.den.foxflow.builders.classes;
 
+import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.features.CommandsV2;
-import bot.den.foxflow.exceptions.AmbiguousTransitionSetup;
 import bot.den.foxflow.exceptions.DuplicateTimeSetup;
 import bot.den.foxflow.exceptions.FailLoudlyException;
 import bot.den.foxflow.exceptions.InvalidStateTransition;
@@ -16,7 +16,6 @@ import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
 import java.util.*;
-import java.util.function.BooleanSupplier;
 
 public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     private final TypeSpec.Builder builder;
@@ -27,7 +26,8 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     ) {
         this.names = names;
         builder = TypeSpec.classBuilder(names.managerClassName())
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class);
 
         addAddRuleMethod();
         addTriggerMethod();
@@ -41,7 +41,9 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addParameter(names.dataTypeName(), "fromState")
                 .addParameter(names.rule().name(), "rule")
                 .addCode("""
-                        $1T.this.verifyFromStateEnabled(fromState);
+                        if($1T.this.fromCache.enable(fromState)) {
+                            $1T.this.currentSubData = $1T.this.fromCache.generate($1T.this.currentState);
+                        }
                         
                         $1T.this.transitionRules.computeIfAbsent(fromState, _ -> new $2T<>());
 
@@ -58,7 +60,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
 
                             $1T.this.timerMap.put(fromState, new $5T());
                         } else if(rule.condition() instanceof $7T($8T toState)) {
-                            $1T.this.verifyToStateEnabled(toState);
+                            $1T.this.toCache.enable(toState);
                         }
                         
                         $1T.this.transitionRules.get(fromState).add(rule);
@@ -92,15 +94,17 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                     .addParameter(EventLoop.class, "eventLoop")
                     .addParameter(names.dataTypeName(), "state")
                     .addCode("""
-                                    $1T.this.verifyFromStateEnabled(state);
-                                    
-                                    if(! $1T.this.triggerMap.containsKey(state)) {
-                                        var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
-                                        triggerMap.put(state, trigger);
-                                    }
-                                    
-                                    return triggerMap.get(state);
-                                    """,
+                                if($1T.this.fromCache.enable(state)) {
+                                    $1T.this.currentSubData = $1T.this.fromCache.generate($1T.this.currentState);
+                                }
+
+                                if(! $1T.this.triggerMap.containsKey(state)) {
+                                    var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
+                                    triggerMap.put(state, trigger);
+                                }
+
+                                return triggerMap.get(state);
+                                """,
                             names.stateMachineClassName()
                     )
                     .build()
@@ -170,15 +174,15 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
 
         updateStateMethodBuilder
                 .addCode("""
-                                var nextToStates = generateToSubDataStates(nextState);
+                                var nextToStates = $1T.this.toCache.generate(nextState);
                                 
-                                if(! $1T.disjoint(runtimeCache.failLoudly, nextToStates)) {
-                                    var failLoudly = new $2T("State transition was requested to fail loudly");
+                                if(! $2T.disjoint(runtimeCache.failLoudly, nextToStates)) {
+                                    var failLoudly = new $3T("State transition was requested to fail loudly");
                                 
-                                    throw new $3T(currentState, nextState, failLoudly);
+                                    throw new $4T(currentState, nextState, failLoudly);
                                 }
                                 
-                                var nextFromStates = generateFromSubDataStates(nextState);
+                                var nextFromStates = $1T.this.fromCache.generate(nextState);
                                 
                                 // Stop the current timers that aren't in our new state
                                 for(var currentData : currentSubData) {
@@ -213,6 +217,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                                 
                                 regenerateTransitionCaches();
                                 """,
+                        names.stateMachineClassName(),
                         Collections.class,
                         FailLoudlyException.class,
                         InvalidStateTransition.class);

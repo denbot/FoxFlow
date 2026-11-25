@@ -1,5 +1,6 @@
 package bot.den.foxflow.builders.classes;
 
+import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.HasClassName;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
@@ -17,7 +18,8 @@ public class PairBuilder implements TypedBuilder<TypeSpec>, HasClassName {
         this.names = names;
 
         builder = TypeSpec.recordBuilder(names.pairName())
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class);
 
         addConstructor();
     }

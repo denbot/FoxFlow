@@ -1,5 +1,6 @@
 package bot.den.foxflow.builders.classes;
 
+import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.HasClassName;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.names.Names;
@@ -21,7 +22,8 @@ public class RuntimeCacheBuilder implements TypedBuilder<TypeSpec>, HasClassName
         this.names = names;
 
         builder = TypeSpec.classBuilder(names.runtimeCacheName())
-                .addModifiers(Modifier.PUBLIC);
+                .addModifiers(Modifier.PUBLIC)
+                .addAnnotation(Generated.class);
 
         addConstructor();
 

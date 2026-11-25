@@ -26,6 +26,7 @@ public record Names(
         ClassName pairName,
         ClassName timeName,
         ClassName runtimeCacheName,
+        ClassName enabledCacheName,
 
         // Sub-names for deeply nested classes
         Rule rule,
@@ -84,6 +85,7 @@ public record Names(
                 ClassName.get(obfuscatedPackageName, "Pair"),
                 ClassName.get(obfuscatedPackageName, "Time"),
                 ClassName.get(obfuscatedPackageName, "RuntimeCache"),
+                ClassName.get(obfuscatedPackageName, "EnabledCache"),
                 new Rule(obfuscatedPackageName),
                 hasCommandsV2 ? commandsV2 : null,
                 commandType,

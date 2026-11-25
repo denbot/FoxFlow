@@ -3,7 +3,6 @@ package bot.den.foxflow.builders.classes;
 import bot.den.foxflow.DefaultState;
 import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
-import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.HasClassName;
 import bot.den.foxflow.builders.names.Names;
@@ -15,20 +14,15 @@ import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
 import com.palantir.javapoet.*;
-import com.palantir.javapoet.MethodSpec.Builder;
 import org.wpilib.driverstation.internal.DriverStationBackend;
 import org.wpilib.hardware.hal.ControlWord;
 import org.wpilib.networktables.NetworkTableInstance;
 import org.wpilib.networktables.StringPublisher;
 import org.wpilib.networktables.StringTopic;
-import org.wpilib.system.Timer;
-import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Element;
 import javax.lang.model.element.Modifier;
 import java.util.*;
-import java.util.Map.Entry;
-import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -37,12 +31,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
     private final Names names;
     private final Validator validator;
 
-    private final String FROM = "from";
-
-    private final Map<String, LinkedHashMap<ClassName, String>> innerClassEnabledFields;
-
     private final ParameterizedTypeName subDataSetType;
-
 
     public StateMachineBuilder(
             Names names
@@ -58,29 +47,14 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
                 names.dataTypeName()
         );
 
-        innerClassEnabledFields = Map.ofEntries(
-                Map.entry(FROM, new LinkedHashMap<>()),
-                Map.entry("to", new LinkedHashMap<>())
-        );
-
-        // Individual boolean enabled fields
-        if (validator instanceof RecordValidator rv) {
-            innerClassEnabledFields
-                    .forEach((key, value) -> {
-                        for (var innerClassName : rv.fieldToInnerClass.values()) {
-                            value.put(innerClassName, key + innerClassName.simpleName() + "Enabled");
-                        }
-                    });
-        }
-
         addManagerField();
         addCurrentDataFields();
+        addEnabledCacheFields();
         addNetworkTablesFields();
         addTransitionRuleFields();
         addRuntimeCacheFields();
         addTriggerFields();
         addTimerMapField();
-        addEnableFields();
         addControlWordFields();
 
         addConstructors();
@@ -93,9 +67,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
         addGetNextStateMethod();
 
         addRunTransitionCommandsMethod();
-        addVerifyStateEnabledCommands();
 
-        addGenerateSubDataStatesMethods();
         addRegenerateMethods();
 
         builder.addType(new StateManagerBuilder(names).build());
@@ -131,6 +103,21 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
                 .initializer("new $T()", names.managerClassName())
                 .build()
         );
+    }
+
+    private void addEnabledCacheFields() {
+        builder.addField(FieldSpec
+                .builder(names.enabledCacheName(), "fromCache")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T()", names.enabledCacheName())
+                .build());
+
+
+        builder.addField(FieldSpec
+                .builder(names.enabledCacheName(), "toCache")
+                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
+                .initializer("new $T()", names.enabledCacheName())
+                .build());
     }
 
     private void addCurrentDataFields() {
@@ -205,19 +192,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
         }
     }
 
-    private void addEnableFields() {
-        for (var fieldMap : innerClassEnabledFields.values()) {
-            for (var fieldName : fieldMap.values()) {
-                builder.addField(FieldSpec
-                        .builder(boolean.class, fieldName)
-                        .addModifiers(Modifier.PRIVATE)
-                        .initializer("false")
-                        .build()
-                );
-            }
-        }
-    }
-
     private void addControlWordFields() {
         if (!(validator instanceof RecordValidator rv)) {
             return;
@@ -247,7 +221,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
                     .addParameter(validator.originalTypeName(), "initialState")
                     .addCode("""
                             this.currentState = initialState;
-                            this.currentSubData = this.generateFromSubDataStates(initialState);
+                            this.currentSubData = this.fromCache.generate(initialState);
                             this.runtimeCache = new $1T(currentSubData, transitionRules);
                             currentStatePublisher.set(currentState.toString());
                             """,
@@ -629,111 +603,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
                         """, runCommands)
                 .build()
         );
-    }
-
-    private void addVerifyStateEnabledCommands() {
-        List<MethodSpec> verifyStateEnabledMethods = new ArrayList<>();
-
-        for (var entry : innerClassEnabledFields.entrySet()) {
-            String key = entry.getKey();
-            var fieldMap = entry.getValue();
-            Builder verifyStateEnabledMethodBuilder = MethodSpec
-                    .methodBuilder("verify" + Util.ucfirst(key) + "StateEnabled")
-                    .addModifiers(Modifier.PRIVATE)
-                    .addParameter(names.dataTypeName(), "state");
-
-            if (validator instanceof EnumValidator) {
-                verifyStateEnabledMethodBuilder
-                        .addComment("We have no states to enable, but this does make record state machine generation easier")
-                        .addStatement("return");
-            } else if (validator instanceof RecordValidator) {
-                fieldMap
-                        .entrySet()
-                        .stream()
-                        .sorted(Entry.comparingByValue())
-                        .forEach((e) -> {
-                            verifyStateEnabledMethodBuilder.beginControlFlow("if(state instanceof $T)", e.getKey());
-
-                            String fieldName = e.getValue();
-                            if (key.equals(FROM)) {
-                                verifyStateEnabledMethodBuilder
-                                        .beginControlFlow("if(!this.$L)", fieldName)
-                                        .addStatement("this.$L = true", fieldName)
-                                        .addStatement("this.currentSubData = this.generateFromSubDataStates(currentState)")
-                                        .endControlFlow();
-                            } else {
-                                verifyStateEnabledMethodBuilder.addStatement("this.$L = true", fieldName);
-                            }
-
-                            verifyStateEnabledMethodBuilder
-                                    .addStatement("return")
-                                    .endControlFlow();
-                        });
-            }
-
-            verifyStateEnabledMethods.add(verifyStateEnabledMethodBuilder.build());
-        }
-
-        for (var method : verifyStateEnabledMethods) {
-            builder.addMethod(method);
-        }
-    }
-
-    private void addGenerateSubDataStatesMethods() {
-        List<MethodSpec> generateSubDataStatesMethods = new ArrayList<>();
-        for (var entry : innerClassEnabledFields.entrySet()) {
-            String key = entry.getKey();
-            var fieldMap = entry.getValue();
-
-            Builder generateSubDataStateBuilder = MethodSpec
-                    .methodBuilder("generate" + Util.ucfirst(key) + "SubDataStates")
-                    .addModifiers(Modifier.PRIVATE)
-                    .addParameter(validator.originalTypeName(), "state")
-                    .returns(subDataSetType);
-
-            if (validator instanceof EnumValidator) {
-                generateSubDataStateBuilder
-                        .addComment("Enum state machines only ever contain the one state, this does make record state machine generation easier")
-                        .addStatement("return Set.of(state)");
-            } else if (validator instanceof RecordValidator rv) {
-                generateSubDataStateBuilder
-                        .addStatement("$1T result = new $2T<>()", subDataSetType, HashSet.class);
-
-                rv.fields.forEach(
-                        (field) -> generateSubDataStateBuilder.addStatement("$1T $2LField = state.$2L()", field.value(), field.name())
-                );
-
-                fieldMap
-                        .entrySet()
-                        .stream()
-                        .sorted(Comparator.comparing(Entry::getValue))
-                        .forEach((e) -> {
-                            var innerClassName = e.getKey();
-                            var fieldName = e.getValue();
-
-                            generateSubDataStateBuilder
-                                    .beginControlFlow("if(this.$L)", fieldName)
-                                    .addStatement(
-                                            "result.add($L)",
-                                            rv.dataEmitter(innerClassName)
-                                                    .withConstructor()
-                                                    .withNestedClassesWrapped()
-                                                    .withTransform(f -> f + "Field")
-                                                    .emit()
-                                    )
-                                    .endControlFlow();
-                        });
-
-                generateSubDataStateBuilder
-                        .addStatement("return result");
-            }
-
-            generateSubDataStatesMethods.add(generateSubDataStateBuilder.build());
-        }
-
-        for (var method : generateSubDataStatesMethods) {
-            builder.addMethod(method);
-        }
     }
 
     private void addRegenerateMethods() {
