@@ -2,6 +2,7 @@ package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
+import bot.den.foxflow.builders.HasClassName;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.features.CommandsV2;
@@ -13,7 +14,7 @@ import com.palantir.javapoet.*;
 import javax.lang.model.element.Modifier;
 import java.util.List;
 
-public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
+public class LimitedToBuilder implements TypedBuilder<TypeSpec>, HasClassName {
     private final TypeSpec.Builder builder;
     private final Names names;
 
@@ -150,5 +151,10 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
     @Override
     public TypeSpec build() {
         return builder.build();
+    }
+
+    @Override
+    public ClassName className() {
+        return names.limitedToClassName();
     }
 }

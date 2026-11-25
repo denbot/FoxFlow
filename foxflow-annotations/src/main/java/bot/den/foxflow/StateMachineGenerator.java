@@ -1,11 +1,14 @@
 package bot.den.foxflow;
 
+import bot.den.foxflow.builders.HasClassName;
+import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.classes.*;
 import bot.den.foxflow.builders.classes.rules.RuleBuilder;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
+import com.palantir.javapoet.TypeSpec;
 
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.ElementKind;
@@ -43,48 +46,19 @@ public class StateMachineGenerator {
                 this.environment.writeType(type.getFirst(), type.getSecond());
             }
         }
+        generate(new RuleBuilder(names));
+        generate(new PairBuilder(names));
+        generate(new TimeBuilder(names));
+        generate(new LimitedToBuilder(names));
+        generate(new ToBuilder(names));
+        generate(new FromBuilder(names));
+        generate(new StateMachineBuilder(names));
+    }
 
-        // Rules class
+    private <T extends TypedBuilder<TypeSpec> & HasClassName> void generate(T myClass) {
         this.environment.writeType(
-                names.rule().name().packageName(),
-                new RuleBuilder(names).build()
-        );
-
-        // Pair class
-        this.environment.writeType(
-                names.pairName().packageName(),
-                new PairBuilder(names).build()
-        );
-
-        // Time class
-        this.environment.writeType(
-                names.timeName().packageName(),
-                new TimeBuilder(names).build()
-        );
-
-        // LimitedTo class
-        this.environment.writeType(
-                names.limitedToClassName().packageName(),
-                new LimitedToBuilder(names).build()
-        );
-
-        // To class
-        this.environment.writeType(
-                names.toClassName().packageName(),
-                new ToBuilder(names).build()
-        );
-
-        // From class
-        this.environment.writeType(
-                names.fromClassName().packageName(),
-                new FromBuilder(names).build()
-        );
-
-        var stateMachineBuilder = new StateMachineBuilder(names);
-
-        this.environment.writeType(
-                names.stateMachineClassName().packageName(),
-                stateMachineBuilder.build()
+                myClass.className().packageName(),
+                myClass.build()
         );
     }
 }

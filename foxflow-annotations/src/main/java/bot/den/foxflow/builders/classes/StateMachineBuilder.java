@@ -5,6 +5,7 @@ import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.Util;
 import bot.den.foxflow.builders.FieldHelper;
+import bot.den.foxflow.builders.HasClassName;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.features.CommandsV2;
@@ -31,7 +32,7 @@ import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
+public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName {
     private final TypeSpec.Builder builder;
     private final Names names;
     private final Validator validator;
@@ -891,5 +892,10 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     @Override
     public TypeSpec build() {
         return builder.build();
+    }
+
+    @Override
+    public ClassName className() {
+        return names.stateMachineClassName();
     }
 }

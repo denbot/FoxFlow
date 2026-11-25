@@ -1,8 +1,10 @@
 package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.Generated;
+import bot.den.foxflow.builders.HasClassName;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
+import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.MethodSpec;
 import com.palantir.javapoet.TypeSpec;
 import org.wpilib.units.Units;
@@ -11,7 +13,7 @@ import org.wpilib.units.measure.Time;
 import javax.lang.model.element.Modifier;
 import java.util.function.BooleanSupplier;
 
-public class ToBuilder implements TypedBuilder<TypeSpec> {
+public class ToBuilder implements TypedBuilder<TypeSpec>, HasClassName {
     private final TypeSpec.Builder builder;
     private final Names names;
 
@@ -100,5 +102,10 @@ public class ToBuilder implements TypedBuilder<TypeSpec> {
     @Override
     public TypeSpec build() {
         return builder.build();
+    }
+
+    @Override
+    public ClassName className() {
+        return names.toClassName();
     }
 }

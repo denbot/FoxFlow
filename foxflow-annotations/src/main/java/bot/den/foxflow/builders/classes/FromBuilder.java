@@ -2,19 +2,17 @@ package bot.den.foxflow.builders.classes;
 
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.FieldHelper;
+import bot.den.foxflow.builders.HasClassName;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.features.CommandsV2;
 import bot.den.foxflow.validator.RecordValidator;
-import com.palantir.javapoet.CodeBlock;
-import com.palantir.javapoet.FieldSpec;
-import com.palantir.javapoet.MethodSpec;
-import com.palantir.javapoet.TypeSpec;
+import com.palantir.javapoet.*;
 import org.wpilib.event.EventLoop;
 
 import javax.lang.model.element.Modifier;
 
-public class FromBuilder implements TypedBuilder<TypeSpec> {
+public class FromBuilder implements TypedBuilder<TypeSpec>, HasClassName {
     private final TypeSpec.Builder builder;
     private final Names names;
 
@@ -167,5 +165,10 @@ public class FromBuilder implements TypedBuilder<TypeSpec> {
     @Override
     public TypeSpec build() {
         return builder.build();
+    }
+
+    @Override
+    public ClassName className() {
+        return names.fromClassName();
     }
 }
