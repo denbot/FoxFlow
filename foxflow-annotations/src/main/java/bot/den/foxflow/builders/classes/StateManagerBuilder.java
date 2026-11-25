@@ -30,7 +30,6 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addModifiers(Modifier.PUBLIC);
 
         addAddRuleMethod();
-        addFailLoudlyMethod();
         addTriggerMethod();
         addUpdateStateMethod();
     }
@@ -80,32 +79,6 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                         Time.class,
                         names.rule().condition().onTransition(),
                         names.dataTypeName())
-                .build()
-        );
-    }
-
-    private void addFailLoudlyMethod() {
-        builder.addMethod(MethodSpec
-                .methodBuilder("failLoudly")
-                .addModifiers(Modifier.PUBLIC)
-                .addParameter(names.dataTypeName(), "fromState")
-                .addParameter(names.dataTypeName(), "toState")
-                .addCode("""
-                                $1T.this.verifyFromStateEnabled(fromState);
-                                $1T.this.verifyToStateEnabled(toState);
-                                
-                                if(!$1T.this.failLoudlyMap.containsKey(fromState)) {
-                                    $1T.this.failLoudlyMap.put(fromState, new $2T<>());
-                                }
-                                
-                                $1T.this.failLoudlyMap.get(fromState).add(toState);
-                                
-                                if($1T.this.currentSubData.contains(fromState)) {
-                                    $1T.this.regenerateFailLoudlyCache();
-                                }
-                                """,
-                        names.stateMachineClassName(),
-                        HashSet.class)
                 .build()
         );
     }
@@ -239,7 +212,6 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                                 runTransitionCommands(nextToStates);
                                 
                                 regenerateTransitionCaches();
-                                regenerateFailLoudlyCache();
                                 """,
                         Collections.class,
                         FailLoudlyException.class,

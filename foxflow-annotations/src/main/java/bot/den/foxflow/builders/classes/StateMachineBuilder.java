@@ -200,21 +200,6 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addFailLoudlyFields() {
-        var failLoudlyMapType = ParameterizedTypeName.get(
-                ClassName.get(Map.class),
-                names.dataTypeName(),
-                ParameterizedTypeName.get(
-                        ClassName.get(Set.class),
-                        names.dataTypeName()
-                )
-        );
-        builder.addField(FieldSpec
-                .builder(failLoudlyMapType, "failLoudlyMap")
-                .addModifiers(Modifier.PRIVATE, Modifier.FINAL)
-                .initializer("new $T<>()", HashMap.class)
-                .build()
-        );
-
         var failLoudlyCacheType = ParameterizedTypeName.get(
                 ClassName.get(Set.class),
                 names.dataTypeName()
@@ -826,6 +811,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                 this.timeLimitCache = null;
                                 this.timerFromStateCache = null;
                                 this.transitionCommandCache = new $1T<>();
+                                this.failLoudlyCache = new $18T<>();
                                 
                                 this.currentSubData.forEach(state -> {
                                     if (!this.transitionRules.containsKey(state)) {
@@ -858,19 +844,21 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                                                             this.timerFromStateCache = state;
                                                         }
                                                     }
-                                                    case $13T _ -> throw new $14T("Cannot combine TransitionTo action with OnTransition condition");
+                                                    default -> throw new $14T("Cannot combine TransitionTo action with that condition");
                                                 }
                                             }
                                             case $15T($16T command) -> {
                                                 switch(rule.condition()) {
-                                                    case $7T _ -> throw new $14T("Cannot combine RunCommand action with Always condition");
-                                                    case $8T _ -> throw new $14T("Cannot combine RunCommand action with When condition");
-                                                    case $9T _ -> throw new $14T("Cannot combine RunCommand action with After condition");
-                                                    case $13T($6T toState) -> {
-                                                        this.transitionCommandCache
-                                                            .computeIfAbsent(toState, _ -> new $2T<>())
-                                                            .add(command);
-                                                    }
+                                                    case $13T($6T toState) -> this.transitionCommandCache
+                                                        .computeIfAbsent(toState, _ -> new $2T<>())
+                                                        .add(command);
+                                                    default -> throw new $14T("Cannot combine RunCommand action with that condition");
+                                                }
+                                            }
+                                            case $17T _ -> {
+                                                switch(rule.condition()) {
+                                                    case $13T($6T toState) -> this.failLoudlyCache.add(toState);
+                                                    default -> throw new $14T("Cannot combine RunCommand action with that condition");
                                                 }
                                             }
                                         }
@@ -892,26 +880,10 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec> {
                         names.rule().condition().onTransition(),
                         UnsupportedOperationException.class,
                         names.rule().action().runCommand(),
-                        names.commandTypeName()
+                        names.commandTypeName(),
+                        names.rule().action().failLoudly(),
+                        HashSet.class
                 )
-                .build()
-        );
-
-        builder.addMethod(MethodSpec
-                .methodBuilder("regenerateFailLoudlyCache")
-                .addModifiers(Modifier.PRIVATE)
-                .addCode("""
-                                this.failLoudlyCache = new $1T<>();
-                                
-                                this.currentSubData.forEach(state -> {
-                                    if (!this.failLoudlyMap.containsKey(state)) {
-                                        return;
-                                    }
-                                
-                                    this.failLoudlyCache.addAll(this.failLoudlyMap.get(state));
-                                });
-                                """,
-                        HashSet.class)
                 .build()
         );
     }

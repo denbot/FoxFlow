@@ -92,7 +92,13 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec> {
         builder.addMethod(MethodSpec
                 .methodBuilder("failLoudly")
                 .addModifiers(Modifier.PUBLIC)
-                .addStatement("this.manager.failLoudly(this.fromState, this.toState)")
+                .addCode("""
+                        var rule = new $1T(new $2T(toState), new $3T());
+                        this.manager.addRule(fromState, rule);
+                        """,
+                        names.rule().name(),
+                        names.rule().condition().onTransition(),
+                        names.rule().action().failLoudly())
                 .build()
         );
     }

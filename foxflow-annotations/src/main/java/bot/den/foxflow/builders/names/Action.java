@@ -5,7 +5,8 @@ import com.palantir.javapoet.ClassName;
 public record Action(
         ClassName name,
         ClassName transitionTo,
-        ClassName runCommand
+        ClassName runCommand,
+        ClassName failLoudly
         ) {
 
     public Action(
@@ -14,7 +15,8 @@ public record Action(
         this(
                 name,
                 name.nestedClass("TransitionTo"),
-                name.nestedClass("RunCommand")
+                name.nestedClass("RunCommand"),
+                name.nestedClass("FailLoudly")
         );
     }
 }

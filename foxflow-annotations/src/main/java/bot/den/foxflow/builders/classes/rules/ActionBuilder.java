@@ -28,6 +28,7 @@ public class ActionBuilder implements TypedBuilder<TypeSpec> {
 
         addTransitionToRecord();
         addRunCommand();
+        addFailLoudly();
     }
 
     private void addTransitionToRecord() {
@@ -54,6 +55,14 @@ public class ActionBuilder implements TypedBuilder<TypeSpec> {
                 .addSuperinterface(action.name())
                 .addModifiers(Modifier.PUBLIC, Modifier.STATIC)
                 .recordConstructor(constructor);
+
+        builder.addType(runCommand.build());
+    }
+
+    private void addFailLoudly() {
+        TypeSpec.Builder runCommand = TypeSpec.recordBuilder(action.failLoudly())
+                .addSuperinterface(action.name())
+                .addModifiers(Modifier.PUBLIC, Modifier.STATIC);
 
         builder.addType(runCommand.build());
     }
