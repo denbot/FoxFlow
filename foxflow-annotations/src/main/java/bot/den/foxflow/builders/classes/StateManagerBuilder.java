@@ -153,10 +153,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 var fieldName = field.name();
                 var otherData = CodeBlock.of("$1LData", fieldName);
 
-                if (rv.nestedRecords.containsKey(field.value())) {
-                    var dataType = rv.nestedRecords.get(field.value());
-                    otherData = CodeBlock.of("$1T.toRecord($2LData)", dataType, fieldName);
-                } else if (rv.nestedInterfaces.containsKey(field.value())) {
+                if (rv.nestedInterfaces.containsKey(field.value())) {
                     otherData = CodeBlock.of("$1LData.data()", fieldName);
                 }
 

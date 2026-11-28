@@ -1,9 +1,9 @@
-package fixtures;
+package fixtures.child_records;
 
 import bot.den.foxflow.StateMachine;
 
 @StateMachine
 public record OuterRecord(
-        RecordWithIntField myIntField
+        InnerRecord myInnerRecord
 ) {
 }

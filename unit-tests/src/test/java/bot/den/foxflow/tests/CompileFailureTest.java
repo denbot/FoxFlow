@@ -160,9 +160,9 @@ public class CompileFailureTest {
     }
 
     @Test
-    public void outerRecordGetsTheError() {
-        var outer = JavaFileObjects.forResource("fixtures/OuterRecord.java");
-        var inner = JavaFileObjects.forResource("fixtures/InnerBrokenRecord.java");
+    public void cannotPutRecordAsRecordField() {
+        var outer = JavaFileObjects.forResource("fixtures/child_records/OuterRecord.java");
+        var inner = JavaFileObjects.forResource("fixtures/child_records/InnerRecord.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -170,9 +170,8 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("Invalid type int")
-                .inFile(outer)
-                .onLineContaining("record OuterRecord");
+                .hadErrorContaining("Invalid type fixtures.child_records.InnerRecord for field myInnerRecord in record fixtures.child_records.OuterRecord")
+                .inFile(outer);
     }
 
     @Test
