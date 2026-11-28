@@ -7,6 +7,7 @@ import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.JavaFile;
 import com.palantir.javapoet.TypeSpec;
 
+import javax.annotation.processing.FilerException;
 import javax.annotation.processing.ProcessingEnvironment;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.element.Element;
@@ -18,6 +19,7 @@ import javax.lang.model.type.TypeKind;
 import javax.lang.model.type.TypeMirror;
 import javax.tools.Diagnostic;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
@@ -44,8 +46,10 @@ public record Environment(
         JavaFile file = JavaFile.builder(packageName, type).indent("    ").build();
         try {
             file.writeTo(processingEnvironment.getFiler());
-        } catch (IOException e) {
+        } catch (FilerException e) {
             throw new ClassAlreadyExists("Failed to write class " + packageName + "." + type.name());
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 

@@ -1,10 +1,12 @@
 package bot.den.foxflow;
 
 import bot.den.foxflow.builders.HasClassName;
+import bot.den.foxflow.builders.OnlyWriteOnce;
 import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.classes.*;
 import bot.den.foxflow.builders.classes.rules.RuleBuilder;
+import bot.den.foxflow.exceptions.ClassAlreadyExists;
 import bot.den.foxflow.exceptions.InvalidSetupException;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
@@ -53,15 +55,22 @@ public class StateMachineGenerator {
         generate(new LimitedToBuilder(names));
         generate(new ToBuilder(names));
         generate(new FromBuilder(names));
+        generate(new GatedCommandBuilder(names.gatesCommandName(), names.features()));
         generate(new RuntimeCacheBuilder(names));
         generate(new EnabledCacheBuilder(names));
         generate(new StateMachineBuilder(names));
     }
 
     private <T extends TypedBuilder<TypeSpec> & HasClassName> void generate(T myClass) {
-        this.environment.writeType(
-                myClass.className().packageName(),
-                myClass.build()
-        );
+        try {
+            this.environment.writeType(
+                    myClass.className().packageName(),
+                    myClass.build()
+            );
+        } catch(ClassAlreadyExists e) {
+            if(!(myClass instanceof OnlyWriteOnce)) {
+                throw e;
+            }
+        }
     }
 }

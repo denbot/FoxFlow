@@ -3,6 +3,7 @@ package bot.den.foxflow.builders.names;
 import bot.den.foxflow.Environment;
 import bot.den.foxflow.RobotState;
 import bot.den.foxflow.builders.features.CommandsV2;
+import bot.den.foxflow.builders.features.Features;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
@@ -27,12 +28,13 @@ public record Names(
         ClassName timeName,
         ClassName runtimeCacheName,
         ClassName enabledCacheName,
+        ClassName gatesCommandName,
 
         // Sub-names for deeply nested classes
         Rule rule,
 
         // Support for features
-        CommandsV2 commandsV2,
+        Features features,
 
         // Related useful names we might use from features that are easier to propagate up in one place
         ClassName commandTypeName,
@@ -58,18 +60,10 @@ public record Names(
             ClassName stateMachineClassName,
             String obfuscatedPackageName
     ) {
-        CommandsV2 commandsV2 = new CommandsV2();
-        boolean hasCommandsV2 = elements.getTypeElement(commandsV2.command().canonicalName()) != null;
-
-        ClassName commandType;
-        if(hasCommandsV2) {
-            commandType = commandsV2.command();
-        } else {
-            commandType = ClassName.get(Runnable.class);
-        }
+        Features features = new Features(elements);
         var commandListType = ParameterizedTypeName.get(
                 ClassName.get(List.class),
-                commandType
+                features.commandType()
         );
 
         ClassName dataTypeName = dataTypeName(validator);
@@ -86,9 +80,10 @@ public record Names(
                 ClassName.get(obfuscatedPackageName, "Time"),
                 ClassName.get(obfuscatedPackageName, "RuntimeCache"),
                 ClassName.get(obfuscatedPackageName, "EnabledCache"),
+                stateMachineClassName.peerClass("GatesCommand"),
                 new Rule(obfuscatedPackageName),
-                hasCommandsV2 ? commandsV2 : null,
-                commandType,
+                features,
+                features.commandType(),
                 commandListType
         );
     }

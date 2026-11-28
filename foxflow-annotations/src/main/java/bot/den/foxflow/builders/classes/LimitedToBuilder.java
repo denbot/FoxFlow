@@ -108,7 +108,7 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec>, HasClassName {
         var transitionToBuilder = new TransitionToBuilder(names, new TransitionToCode() {
             @Override
             public CodeBlock enumCode() {
-                if(LimitedToBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+                if(LimitedToBuilder.this.names.features().commandsV2() instanceof CommandsV2 commandsV2) {
                     return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", commandsV2.commands());
                 }
                 return CodeBlock.of("this.run(() -> this.manager.updateState(state));");
@@ -116,7 +116,7 @@ public class LimitedToBuilder implements TypedBuilder<TypeSpec>, HasClassName {
 
             @Override
             public CodeBlock internalData() {
-                if(LimitedToBuilder.this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+                if(LimitedToBuilder.this.names.features().commandsV2() instanceof CommandsV2 commandsV2) {
                     return CodeBlock.of("this.run($1T.runOnce(() -> this.manager.updateState(state)).ignoringDisable(true));", commandsV2.commands());
                 }
                 return CodeBlock.of("this.run(() -> this.manager.updateState(state));");

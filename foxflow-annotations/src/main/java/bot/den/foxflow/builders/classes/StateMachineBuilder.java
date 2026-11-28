@@ -176,7 +176,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
     }
 
     private void addTriggerFields() {
-        if (this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.features().commandsV2() instanceof CommandsV2 commandsV2) {
             var triggerMapType = ParameterizedTypeName.get(
                     ClassName.get(Map.class),
                     names.dataTypeName(),
@@ -574,7 +574,7 @@ public class StateMachineBuilder implements TypedBuilder<TypeSpec>, HasClassName
 
     private void addRunTransitionCommandsMethod() {
         CodeBlock runCommands;
-        if (this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.features().commandsV2() instanceof CommandsV2 commandsV2) {
             runCommands = CodeBlock.of("""
                     for(var command : runtimeCache.transitionCommand.get(state)) {
                         $1T.getInstance().schedule(command);

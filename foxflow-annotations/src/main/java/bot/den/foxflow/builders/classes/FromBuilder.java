@@ -28,6 +28,7 @@ public class FromBuilder implements TypedBuilder<TypeSpec>, HasClassName {
         addConstructor();
         addToMethods();
         addTriggerMethods();
+        addGatesCommandMethod();
     }
 
     private void addFields() {
@@ -136,13 +137,13 @@ public class FromBuilder implements TypedBuilder<TypeSpec>, HasClassName {
             toMethods.add(method);
         }
 
-        for(var method : toMethods) {
+        for (var method : toMethods) {
             builder.addMethod(method);
         }
     }
 
     private void addTriggerMethods() {
-        if(this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.features().commandsV2() instanceof CommandsV2 commandsV2) {
             builder.addMethod(MethodSpec
                     .methodBuilder("trigger")
                     .addModifiers(Modifier.PUBLIC)
@@ -160,6 +161,20 @@ public class FromBuilder implements TypedBuilder<TypeSpec>, HasClassName {
                     .build()
             );
         }
+    }
+
+    private void addGatesCommandMethod() {
+        builder.addMethod(MethodSpec
+                .methodBuilder("gatesCommand")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(names.features().commandType(), "command")
+                .returns(names.gatesCommandName())
+                .addStatement(
+                        "return new $1T(manager.inExpectedState(this.targetState), command)",
+                        names.gatesCommandName()
+                )
+                .build()
+        );
     }
 
     @Override

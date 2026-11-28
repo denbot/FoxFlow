@@ -16,6 +16,7 @@ import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Modifier;
 import java.util.*;
+import java.util.function.BooleanSupplier;
 
 public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     private final TypeSpec.Builder builder;
@@ -31,6 +32,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
 
         addAddRuleMethod();
         addTriggerMethod();
+        addInExpectedStateMethod();
         addUpdateStateMethod();
     }
 
@@ -86,7 +88,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
     }
 
     private void addTriggerMethod() {
-        if (this.names.commandsV2() instanceof CommandsV2 commandsV2) {
+        if (this.names.features().commandsV2() instanceof CommandsV2 commandsV2) {
             builder.addMethod(MethodSpec
                     .methodBuilder("trigger")
                     .addModifiers(Modifier.PUBLIC)
@@ -94,12 +96,8 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                     .addParameter(EventLoop.class, "eventLoop")
                     .addParameter(names.dataTypeName(), "state")
                     .addCode("""
-                                if($1T.this.fromCache.enable(state)) {
-                                    $1T.this.currentSubData = $1T.this.fromCache.generate($1T.this.currentState);
-                                }
-
                                 if(! $1T.this.triggerMap.containsKey(state)) {
-                                    var trigger = new Trigger(eventLoop, () -> $1T.this.currentSubData.contains(state));
+                                    var trigger = new Trigger(eventLoop, this.inExpectedState(state));
                                     triggerMap.put(state, trigger);
                                 }
 
@@ -110,6 +108,24 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                     .build()
             );
         }
+    }
+
+    private void addInExpectedStateMethod() {
+        builder.addMethod(MethodSpec
+                .methodBuilder("inExpectedState")
+                .addModifiers(Modifier.PUBLIC)
+                .addParameter(names.dataTypeName(), "state")
+                .returns(BooleanSupplier.class)
+                .addCode("""
+                                if($1T.this.fromCache.enable(state)) {
+                                    $1T.this.currentSubData = $1T.this.fromCache.generate($1T.this.currentState);
+                                }
+                                
+                                return () -> $1T.this.currentSubData.contains(state);
+                                """,
+                        names.stateMachineClassName())
+                .build()
+        );
     }
 
     private void addUpdateStateMethod() {
