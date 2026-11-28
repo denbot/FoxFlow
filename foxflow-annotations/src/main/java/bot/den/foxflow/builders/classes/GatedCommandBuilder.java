@@ -32,7 +32,9 @@ public class GatedCommandBuilder implements TypedBuilder<TypeSpec>, HasClassName
         addConstructor();
 
         if (this.features.commandsV2() instanceof CommandsV2 commandsV2) {
-            this.addCommandsV2Code(commandsV2);
+            addCommandsV2Code(commandsV2);
+        } else {
+            addRunnableCode();
         }
     }
 
@@ -116,6 +118,21 @@ public class GatedCommandBuilder implements TypedBuilder<TypeSpec>, HasClassName
                     .build()
             );
         }
+    }
+
+    private void addRunnableCode() {
+        builder.addSuperinterface(Runnable.class);
+
+        builder.addMethod(MethodSpec
+                .methodBuilder("run")
+                .addModifiers(Modifier.PUBLIC)
+                .addCode("""
+                        if(inExpectedState.getAsBoolean()) {
+                            this.gatedCommand.run();
+                        }
+                        """)
+                .build()
+        );
     }
 
     @Override
