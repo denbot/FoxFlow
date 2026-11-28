@@ -110,13 +110,11 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
 
     /**
      * @param field The input record field we're converting
-     * @return Either the exact enum value or if it's another record/interface, the nested data values.
+     * @return Either the exact enum value or if it's an interface, the nested data values.
      */
     private ClassName getMaskedDataType(Field<ClassName> field) {
         var dataTypeName = field.value();
-        if (validator.nestedRecords.containsKey(dataTypeName)) {
-            dataTypeName = validator.nestedRecords.get(dataTypeName);
-        } else if (validator.nestedInterfaces.containsKey(dataTypeName)) {
+        if (validator.nestedInterfaces.containsKey(dataTypeName)) {
             dataTypeName = validator.nestedInterfaces.get(dataTypeName);
         }
         return dataTypeName;
@@ -131,10 +129,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                 .map(field -> {
                     String name = field.name();
                     ClassName type = field.value();
-                    if (validator.nestedRecords.containsKey(type)) {
-                        var nestedDataType = validator.nestedRecords.get(type);
-                        return CodeBlock.of("$1T.fromRecord(record.$2L())", nestedDataType, name);
-                    } else if (validator.nestedInterfaces.containsKey(type)) {
+                    if (validator.nestedInterfaces.containsKey(type)) {
                         var nestedDataType = validator.nestedInterfaces.get(type);
                         return CodeBlock.of("$1T.fromRecord(record.$2L())", nestedDataType, name);
                     }
@@ -162,10 +157,7 @@ public class RecordDataBuilder implements TypedBuilder<TypeSpec> {
                 .map(field -> {
                     String name = field.name();
                     ClassName type = field.value();
-                    if (validator.nestedRecords.containsKey(type)) {
-                        var nestedDataType = validator.nestedRecords.get(type);
-                        return CodeBlock.of("$1T.toRecord(castData.$2L())", nestedDataType, name);
-                    } else if (validator.nestedInterfaces.containsKey(type)) {
+                    if (validator.nestedInterfaces.containsKey(type)) {
                         return CodeBlock.of("castData.$1L().data()", name);
                     }
                     return CodeBlock.of("castData.$1L()", name);

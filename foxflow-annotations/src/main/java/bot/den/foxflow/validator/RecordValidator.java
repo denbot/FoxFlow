@@ -3,11 +3,11 @@ package bot.den.foxflow.validator;
 import bot.den.foxflow.*;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.classes.RecordDataBuilder;
+import bot.den.foxflow.exceptions.InvalidSetupException;
 import com.palantir.javapoet.*;
 import org.wpilib.util.Pair;
 
 import javax.lang.model.element.Element;
-import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
 import java.util.*;
 import java.util.function.Function;
@@ -21,7 +21,6 @@ public class RecordValidator implements Validator {
     public final List<Pair<String, TypeSpec>> typesToWrite = new ArrayList<>();
 
     // These contain the mapping between the class the user defined and our data class
-    public final Map<ClassName, ClassName> nestedRecords = new HashMap<>();
     public final Map<ClassName, ClassName> nestedInterfaces = new HashMap<>();
     public final Map<ClassName, Element> defaultValues = new HashMap<>();
 
@@ -29,9 +28,6 @@ public class RecordValidator implements Validator {
 
     private final ClassName originalTypeName;
     private final ClassName wrappedTypeName;
-    private final ClassName pairName;
-    private final ClassName timeName;
-    private final Set<List<Field<ClassName>>> permutations;
 
     public RecordValidator(Environment environment) {
         var typeElement = environment.element();
@@ -39,54 +35,32 @@ public class RecordValidator implements Validator {
 
         String obfuscatedPackageName = environment.getObfuscatedPackageName(originalTypeName);
         wrappedTypeName = ClassName.get(obfuscatedPackageName, "Data");
-        pairName = wrappedTypeName.nestedClass("Pair");
-        timeName = wrappedTypeName.nestedClass("Time");
 
         var typeUtils = environment.processingEnvironment().getTypeUtils();
 
         var recordComponents = typeElement.getRecordComponents();
 
         if (recordComponents.isEmpty()) {
-            throw new RuntimeException("An empty record isn't supported for building a state machine. Failed to build state machine for " + originalTypeName);
+            throw new InvalidSetupException("An empty record isn't supported for building a state machine. Failed to build state machine for " + originalTypeName);
         }
 
         // Validate each enum
         var validators = recordComponents
                 .stream()
                 .map((e) -> {
-                    var element = (TypeElement) typeUtils.asElement(e.asType());
-                    var newEnvironment = environment.forNewElement(element);
+                    var type = e.asType();
 
-                    if (element.getKind() == ElementKind.ENUM) {
-                        return new EnumValidator(newEnvironment);
-                    } else if (element.getKind() == ElementKind.RECORD) {
-                        // Nested record, we have to go deeper!
-                        return new RecordValidator(newEnvironment);
-                    } else if (element.getKind() == ElementKind.INTERFACE) {
-                        return new InterfaceValidator(newEnvironment);
-                    } else {
-                        throw new RuntimeException("Invalid type " + element.getSimpleName() + " in record " + typeElement.getSimpleName());
+                    if (typeUtils.asElement(type) instanceof TypeElement element) {
+                        var newEnvironment = environment.forNewElement(element);
+
+                        switch(element.getKind()) {
+                            case ENUM: return new EnumValidator(newEnvironment);
+                            case INTERFACE: return new InterfaceValidator(newEnvironment);
+                        }
                     }
+                    throw new InvalidSetupException("Invalid type " + type + " for field " + e.getSimpleName() + " in record " + typeElement.getQualifiedName());
                 })
                 .toList();
-
-        // Nested Records
-        {
-            List<RecordValidator> nestedRecordValidators = validators
-                    .stream()
-                    .filter(v -> v instanceof RecordValidator)
-                    .map(v -> (RecordValidator) v)
-                    .toList();
-
-            typesToWrite.addAll(
-                    nestedRecordValidators
-                            .stream()
-                            .flatMap(v -> v.typesToWrite.stream())
-                            .toList()
-            );
-
-            nestedRecordValidators.forEach(rv -> nestedRecords.put(rv.originalTypeName, rv.wrappedTypeName));
-        }
 
         // Nested Interfaces
         {
@@ -128,6 +102,19 @@ public class RecordValidator implements Validator {
             fields.add(new Field<>(typeName, variableName));
         }
 
+        // Quick check that we only have one type per field in our record
+        {
+            Set<ClassName> seen = new HashSet<>();
+            Optional<Validator> firstDuplicate = validators
+                    .stream()
+                    .filter(v -> !seen.add(v.originalTypeName()))
+                    .findFirst();
+
+            if(firstDuplicate.isPresent()) {
+                throw new InvalidSetupException("Cannot have more than one field of type " + firstDuplicate.get().originalTypeName() + " in record " + originalTypeName);
+            }
+        }
+
         supportsStateTransition = validators
                 .stream()
                 .collect(Collectors.toMap(
@@ -135,7 +122,7 @@ public class RecordValidator implements Validator {
                         Validator::supportsStateTransition
                 ));
 
-        permutations = new PermutationBuilder<>(fields).get();
+        Set<List<Field<ClassName>>> permutations = new PermutationBuilder<>(fields).get();
 
         fieldToInnerClass = new HashMap<>();
         innerClassToField = new HashMap<>();
@@ -234,8 +221,6 @@ public class RecordValidator implements Validator {
                         if (substituteDefaults.contains(type) && defaultValues.containsKey(type)) {
                             Element defaultValue = defaultValues.get(type);
                             return CodeBlock.of("$T.$L", defaultValue.getEnclosingElement(), defaultValue);
-                        } else if (wrapNestedClasses && nestedRecords.containsKey(type)) {
-                            return CodeBlock.of("$1T.fromRecord($2L)", nestedRecords.get(type), fieldName);
                         } else if (wrapNestedClasses && nestedInterfaces.containsKey(type)) {
                             return CodeBlock.of("$1T.fromRecord($2L)", nestedInterfaces.get(type), fieldName);
                         } else {
