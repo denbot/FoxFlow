@@ -102,6 +102,19 @@ public class RecordValidator implements Validator {
             fields.add(new Field<>(typeName, variableName));
         }
 
+        // Quick check that we only have one type per field in our record
+        {
+            Set<ClassName> seen = new HashSet<>();
+            Optional<Validator> firstDuplicate = validators
+                    .stream()
+                    .filter(v -> !seen.add(v.originalTypeName()))
+                    .findFirst();
+
+            if(firstDuplicate.isPresent()) {
+                throw new InvalidSetupException("Cannot have more than one field of type " + firstDuplicate.get().originalTypeName() + " in record " + originalTypeName);
+            }
+        }
+
         supportsStateTransition = validators
                 .stream()
                 .collect(Collectors.toMap(

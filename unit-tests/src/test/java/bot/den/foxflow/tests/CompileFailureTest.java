@@ -175,7 +175,7 @@ public class CompileFailureTest {
     }
 
     @Test
-    public void collision() {
+    public void stateMachineNameCollision() {
         var myEnum = JavaFileObjects.forResource("fixtures/Collision.java");
         var stateMachine = JavaFileObjects.forResource("fixtures/CollisionStateMachine.java");
 
@@ -186,5 +186,18 @@ public class CompileFailureTest {
         assertThat(compilation)
                 .hadErrorContaining("Failed to write class fixtures.CollisionStateMachine")
                 .inFile(myEnum);
+    }
+
+    @Test
+    public void twoFieldsWithSameTypeIsInvalid() {
+        var file = JavaFileObjects.forResource("fixtures/TwoFieldsSameType.java");
+
+        var compilation = Compiler.javac()
+                .withProcessors(new StateMachineAnnotationProcessor())
+                .compile(file);
+
+        assertThat(compilation)
+                .hadErrorContaining("Cannot have more than one field of type bot.den.foxflow.tests.BasicEnum in record fixtures.TwoFieldsSameType")
+                .inFile(file);
     }
 }
