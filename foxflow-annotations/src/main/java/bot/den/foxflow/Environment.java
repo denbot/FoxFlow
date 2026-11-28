@@ -1,5 +1,7 @@
 package bot.den.foxflow;
 
+import bot.den.foxflow.exceptions.ClassAlreadyExists;
+import bot.den.foxflow.exceptions.InvalidSetupException;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.JavaFile;
 import com.palantir.javapoet.TypeSpec;
@@ -41,8 +43,7 @@ public record Environment(
         try {
             file.writeTo(processingEnvironment.getFiler());
         } catch (IOException e) {
-            error("Failed to write class " + packageName + "." + type.name());
-            throw new RuntimeException(e);
+            throw new ClassAlreadyExists("Failed to write class " + packageName + "." + type.name());
         }
     }
 
@@ -72,18 +73,18 @@ public record Environment(
             // We still need to check correctness
             var typeArguments = declaredType.getTypeArguments();
             if (typeArguments.size() != 1) {
-                throw new RuntimeException("The " + interfaceName.simpleName() + " interface should only have one type argument");
+                throw new InvalidSetupException("The " + interfaceName.simpleName() + " interface should have one type argument");
             }
 
             String sameTypeErrorMessage = interfaceName.simpleName() + " parameter must be of type " + element;
             TypeMirror genericParameter = typeArguments.get(0);
             if (genericParameter.getKind() != TypeKind.DECLARED) {
-                throw new RuntimeException(sameTypeErrorMessage);
+                throw new InvalidSetupException(sameTypeErrorMessage);
             }
 
             TypeElement interfaceImplementation = (TypeElement) typeUtils.asElement(genericParameter);
             if (!interfaceImplementation.equals(element)) {
-                throw new RuntimeException(sameTypeErrorMessage);
+                throw new InvalidSetupException(sameTypeErrorMessage);
             }
 
             // At this point, that type is correctly implemented

@@ -1,10 +1,11 @@
 package bot.den.foxflow;
 
+import bot.den.foxflow.exceptions.StateMachineProcessorException;
+
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.RoundEnvironment;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.TypeElement;
-import javax.tools.Diagnostic;
 import java.util.Optional;
 import java.util.Set;
 
@@ -38,16 +39,12 @@ public class StateMachineAnnotationProcessor extends AbstractProcessor {
                         var generator = new StateMachineGenerator(environment);
 
                         generator.generate();
-                    } catch (Exception e) {
+                    } catch (StateMachineProcessorException e) {
                         String message = e.getMessage();
                         if(message == null) {
                             message = e.getClass().toString();
                         }
                         environment.error(message);
-
-                        processingEnv.getMessager().printMessage(Diagnostic.Kind.ERROR, message, element);
-
-                        throw new RuntimeException(e);
                     }
                 }));
 

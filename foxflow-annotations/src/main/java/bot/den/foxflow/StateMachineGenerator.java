@@ -5,6 +5,7 @@ import bot.den.foxflow.builders.TypedBuilder;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.classes.*;
 import bot.den.foxflow.builders.classes.rules.RuleBuilder;
+import bot.den.foxflow.exceptions.InvalidSetupException;
 import bot.den.foxflow.validator.EnumValidator;
 import bot.den.foxflow.validator.RecordValidator;
 import bot.den.foxflow.validator.Validator;
@@ -31,7 +32,7 @@ public class StateMachineGenerator {
         } else if (element.getKind() == ElementKind.RECORD) {
             this.validator = new RecordValidator(environment);
         } else {
-            throw new RuntimeException("The StateMachine annotation is only valid on enums and records");
+            throw new InvalidSetupException("The StateMachine annotation is only valid on enums and records");
         }
 
         this.names = new Names(

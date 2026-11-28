@@ -3,6 +3,7 @@ package bot.den.foxflow.validator;
 import bot.den.foxflow.*;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.builders.classes.RecordDataBuilder;
+import bot.den.foxflow.exceptions.InvalidSetupException;
 import com.palantir.javapoet.*;
 import org.wpilib.util.Pair;
 
@@ -47,26 +48,25 @@ public class RecordValidator implements Validator {
         var recordComponents = typeElement.getRecordComponents();
 
         if (recordComponents.isEmpty()) {
-            throw new RuntimeException("An empty record isn't supported for building a state machine. Failed to build state machine for " + originalTypeName);
+            throw new InvalidSetupException("An empty record isn't supported for building a state machine. Failed to build state machine for " + originalTypeName);
         }
 
         // Validate each enum
         var validators = recordComponents
                 .stream()
                 .map((e) -> {
-                    var element = (TypeElement) typeUtils.asElement(e.asType());
-                    var newEnvironment = environment.forNewElement(element);
+                    var type = e.asType();
 
-                    if (element.getKind() == ElementKind.ENUM) {
-                        return new EnumValidator(newEnvironment);
-                    } else if (element.getKind() == ElementKind.RECORD) {
-                        // Nested record, we have to go deeper!
-                        return new RecordValidator(newEnvironment);
-                    } else if (element.getKind() == ElementKind.INTERFACE) {
-                        return new InterfaceValidator(newEnvironment);
-                    } else {
-                        throw new RuntimeException("Invalid type " + element.getSimpleName() + " in record " + typeElement.getSimpleName());
+                    if (typeUtils.asElement(type) instanceof TypeElement element) {
+                        var newEnvironment = environment.forNewElement(element);
+
+                        switch(element.getKind()) {
+                            case ENUM: return new EnumValidator(newEnvironment);
+                            case RECORD: return new RecordValidator(newEnvironment);
+                            case INTERFACE: return new InterfaceValidator(newEnvironment);
+                        }
                     }
+                    throw new InvalidSetupException("Invalid type " + type + " for field " + e.getSimpleName() + " in record " + typeElement.getQualifiedName());
                 })
                 .toList();
 

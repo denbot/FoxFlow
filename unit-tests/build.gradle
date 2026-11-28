@@ -75,6 +75,7 @@ testing {
                 useJUnitJupiter('5.10.1')
                 sources {
                     java.srcDirs = ['src/test/java', "src/test${suite}/java"]
+                    resources.srcDirs = ['src/test/resources', "src/test${suite}/resources"]
                     compileClasspath += sourceSets.main.output
                     runtimeClasspath += sourceSets.main.output
                 }
@@ -117,6 +118,8 @@ dependencies {
     simulationRelease wpi.sim.enableRelease()
 
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.1'
+    testImplementation 'com.google.testing.compile:compile-testing:0.24.0'
+    testImplementation(project(":foxflow-annotations"))
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 
     testV2Implementation "org.wpilib.commandsv2:commandsv2-java:${wpi.versions.wpilibVersion.get()}"
@@ -162,6 +165,18 @@ commandsSuites.each { suite ->
         }
     }
     sourceSet.java.srcDir(generate)
+
+    // Add `editFixtures=true` to ~/.gradle/gradle.properties on your machine to make this show fixture files with IDE errors
+    if(providers.gradleProperty('editFixtures').isPresent()) {
+        sourceSets.create("fixtures${suite}") {
+            java.srcDirs = ['src/fixtures/java', "src/fixtures${suite}/java"]
+            compileClasspath += sourceSet.output + classpath
+        }
+    }
+    tasks.named(sourceSet.processResourcesTaskName) {
+        from('src/fixtures/java')
+        from("src/fixtures${suite}/java")
+    }
 }
 
 tasks.withType(Test).configureEach {

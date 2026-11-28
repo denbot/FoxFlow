@@ -5,6 +5,7 @@ import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.Environment;
 import bot.den.foxflow.RobotState;
 import bot.den.foxflow.builders.FieldHelper;
+import bot.den.foxflow.exceptions.InvalidSetupException;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.ParameterizedTypeName;
 import com.palantir.javapoet.TypeName;
@@ -45,7 +46,7 @@ public class EnumValidator implements Validator {
                 .collect(Collectors.toUnmodifiableSet());
 
         if(defaultOptions.size() > 1) {
-            throw new RuntimeException("Cannot put the @DefaultState annotation on more than one element of the same enum");
+            throw new InvalidSetupException("Cannot put the @DefaultState annotation on more than one element of the same enum");
         }
 
         var first = defaultOptions.stream().findFirst();
