@@ -175,6 +175,20 @@ public class CompileFailureTest {
     }
 
     @Test
+    public void genericRecordIsNotAllowed() {
+        var file = JavaFileObjects.forResource("fixtures/records/GenericRecord.java");
+
+        var compilation = Compiler.javac()
+                .withProcessors(new StateMachineAnnotationProcessor())
+                .compile(file);
+
+        assertThat(compilation).hadErrorCount(1);
+        assertThat(compilation)
+                .hadErrorContaining("Invalid type T for field myGenericField in record fixtures.records.GenericRecord")
+                .inFile(file);
+    }
+
+    @Test
     public void stateMachineNameCollision() {
         var myEnum = JavaFileObjects.forResource("fixtures/enums/Collision.java");
         var stateMachine = JavaFileObjects.forResource("fixtures/enums/CollisionStateMachine.java");
