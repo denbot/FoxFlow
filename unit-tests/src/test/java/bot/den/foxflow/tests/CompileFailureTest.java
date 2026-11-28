@@ -214,4 +214,18 @@ public class CompileFailureTest {
                 .hadErrorContaining("fixtures.enums.EmptyEnum must have at least one enum constant")
                 .inFile(file);
     }
+
+    @Test
+    public void defaultTestOnNonEnumConstant() {
+        var file = JavaFileObjects.forResource("fixtures/enums/DefaultStateOnNonEnumConstant.java");
+
+        var compilation = Compiler.javac()
+                .withProcessors(new StateMachineAnnotationProcessor())
+                .compile(file);
+
+        assertThat(compilation).hadErrorCount(1);
+        assertThat(compilation)
+                .hadErrorContaining("@DefaultState must only be used on enum constants")
+                .inFile(file);
+    }
 }

@@ -2,6 +2,7 @@ package bot.den.foxflow;
 
 import bot.den.foxflow.exceptions.ClassAlreadyExists;
 import bot.den.foxflow.exceptions.InvalidSetupException;
+import bot.den.foxflow.exceptions.StateMachineProcessorException;
 import com.palantir.javapoet.ClassName;
 import com.palantir.javapoet.JavaFile;
 import com.palantir.javapoet.TypeSpec;
@@ -21,6 +22,7 @@ import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.Map;
 import java.util.Random;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public record Environment(
