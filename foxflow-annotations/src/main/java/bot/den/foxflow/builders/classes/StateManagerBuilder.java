@@ -1,5 +1,6 @@
 package bot.den.foxflow.builders.classes;
 
+import bot.den.foxflow.Field;
 import bot.den.foxflow.Generated;
 import bot.den.foxflow.builders.names.Names;
 import bot.den.foxflow.builders.TypedBuilder;
@@ -137,11 +138,40 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
                 .addParameter(names.dataTypeName(), "nextStateData");
 
         if (validator instanceof RecordValidator rv && rv.supportsStateTransition()) {
+            CodeBlock robotOnlyCode = CodeBlock.of("");
+            if(rv.robotStatePresent) {
+                var robotFieldOption = rv.fields.stream().filter(f -> f.value().equals(names.robotStateName())).findFirst();
+                if (robotFieldOption.isEmpty()) {
+                    throw new RuntimeException("Robot state was supposedly present but we couldn't find the field");
+                }
+
+                Field<ClassName> robotField = robotFieldOption.get();
+                robotOnlyCode = CodeBlock.of("""
+                        if(nextStateData.$1L() != null) {
+                            try {
+                                updateState(new $2T(nextStateData.$1L()));
+                            } catch(RuntimeException rex) {
+                                e.addSuppressed(rex);
+                            }
+                        }
+                        """,
+                        robotField.name(),
+                        rv.fieldToInnerClass.get(List.of(robotField))
+                        );
+            }
+
             updateStateMethodBuilder.addCode("""
                             var data = $1T.fromRecord(currentState);
-                            data.attemptTransitionTo(nextStateData);
+                            try {
+                                data.attemptTransitionTo(nextStateData);
+                            } catch($2T e) {
+                                $3L
+                                throw e;
+                            }
                             \n""",
-                    names.dataTypeName()
+                    names.dataTypeName(),
+                    InvalidStateTransition.class,
+                    robotOnlyCode
             );
         } else if (validator instanceof EnumValidator ev && ev.supportsStateTransition()) {
             updateStateMethodBuilder.addStatement("currentState.attemptTransitionTo(nextStateData)");
@@ -154,7 +184,7 @@ public class StateManagerBuilder implements TypedBuilder<TypeSpec> {
         } else if (validator instanceof RecordValidator rv) {
             for (var field : rv.fields) {
                 updateStateMethodBuilder.addStatement(
-                        "var $1LData = nextStateData.$1L();",
+                        "var $1LData = nextStateData.$1L()",
                         field.name()
                 );
             }
