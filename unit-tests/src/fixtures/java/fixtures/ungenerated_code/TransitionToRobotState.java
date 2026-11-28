@@ -1,4 +1,4 @@
-package fixtures;
+package fixtures.ungenerated_code;
 
 import bot.den.foxflow.RobotState;
 import bot.den.foxflow.tests.RobotRecordStateMachine;

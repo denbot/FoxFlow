@@ -1,4 +1,4 @@
-package fixtures;
+package fixtures.enums;
 
 public class CollisionStateMachine {
 }

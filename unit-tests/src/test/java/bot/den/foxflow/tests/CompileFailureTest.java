@@ -10,7 +10,7 @@ import static com.google.testing.compile.CompilationSubject.assertThat;
 public class CompileFailureTest {
     @Test
     public void transitionToRobotState() {
-        var file = JavaFileObjects.forResource("fixtures/TransitionToRobotState.java");
+        var file = JavaFileObjects.forResource("fixtures/ungenerated_code/TransitionToRobotState.java");
 
         var compilation = Compiler.javac().compile(file);
 
@@ -23,7 +23,7 @@ public class CompileFailureTest {
 
     @Test
     public void transitionAlwaysWithRobotState() {
-        var file = JavaFileObjects.forResource("fixtures/TransitionAlwaysWithRobotState.java");
+        var file = JavaFileObjects.forResource("fixtures/ungenerated_code/TransitionAlwaysWithRobotState.java");
 
         var compilation = Compiler.javac().compile(file);
 
@@ -35,7 +35,7 @@ public class CompileFailureTest {
 
     @Test
     public void cannotHaveTwoEnumElementsMarkedDefaultState() {
-        var file = JavaFileObjects.forResource("fixtures/TwoDefaultStateInEnum.java");
+        var file = JavaFileObjects.forResource("fixtures/enums/TwoDefaultStateInEnum.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -43,13 +43,13 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("Cannot put the @DefaultState annotation on more than one element of fixtures.TwoDefaultStateInEnum")
+                .hadErrorContaining("Cannot put the @DefaultState annotation on more than one element of fixtures.enums.TwoDefaultStateInEnum")
                 .inFile(file);
     }
 
     @Test
     public void cannotHaveEmptyRecord() {
-        var file = JavaFileObjects.forResource("fixtures/EmptyRecord.java");
+        var file = JavaFileObjects.forResource("fixtures/records/EmptyRecord.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -57,13 +57,13 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("An empty record isn't supported for building a state machine. Failed to build state machine for fixtures.EmptyRecord")
+                .hadErrorContaining("An empty record isn't supported for building a state machine. Failed to build state machine for fixtures.records.EmptyRecord")
                 .inFile(file);
     }
 
     @Test
     public void recordWithStringField() {
-        var file = JavaFileObjects.forResource("fixtures/RecordWithStringField.java");
+        var file = JavaFileObjects.forResource("fixtures/records/RecordWithStringField.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -71,13 +71,13 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("Invalid type java.lang.String for field myField in record fixtures.RecordWithStringField")
+                .hadErrorContaining("Invalid type java.lang.String for field myField in record fixtures.records.RecordWithStringField")
                 .inFile(file);
     }
 
     @Test
     public void recordWithIntField() {
-        var file = JavaFileObjects.forResource("fixtures/RecordWithIntField.java");
+        var file = JavaFileObjects.forResource("fixtures/records/RecordWithIntField.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -85,7 +85,7 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("Invalid type int for field myField in record fixtures.RecordWithIntField")
+                .hadErrorContaining("Invalid type int for field myField in record fixtures.records.RecordWithIntField")
                 .inFile(file);
     }
 
@@ -119,7 +119,7 @@ public class CompileFailureTest {
 
     @Test
     public void invalidLimitsStateTransitions() {
-        var file = JavaFileObjects.forResource("fixtures/InvalidLimitsStateTransitions.java");
+        var file = JavaFileObjects.forResource("fixtures/enums/InvalidLimitsStateTransitions.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -127,13 +127,13 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("LimitsStateTransitions parameter must be of type fixtures.InvalidLimitsStateTransitions")
+                .hadErrorContaining("LimitsStateTransitions parameter must be of type fixtures.enums.InvalidLimitsStateTransitions")
                 .inFile(file);
     }
 
     @Test
     public void stringArrayInLimitsSTateTransitions() {
-        var file = JavaFileObjects.forResource("fixtures/ArrayLimitsStateTransitions.java");
+        var file = JavaFileObjects.forResource("fixtures/enums/ArrayLimitsStateTransitions.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -141,13 +141,13 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("LimitsStateTransitions parameter must be of type fixtures.ArrayLimitsStateTransitions")
+                .hadErrorContaining("LimitsStateTransitions parameter must be of type fixtures.enums.ArrayLimitsStateTransitions")
                 .inFile(file);
     }
 
     @Test
     public void nonGenericLimitsStateTransitions() {
-        var file = JavaFileObjects.forResource("fixtures/NonGenericLimitsStateTransitions.java");
+        var file = JavaFileObjects.forResource("fixtures/enums/NonGenericLimitsStateTransitions.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -176,34 +176,34 @@ public class CompileFailureTest {
 
     @Test
     public void stateMachineNameCollision() {
-        var myEnum = JavaFileObjects.forResource("fixtures/Collision.java");
-        var stateMachine = JavaFileObjects.forResource("fixtures/CollisionStateMachine.java");
+        var myEnum = JavaFileObjects.forResource("fixtures/enums/Collision.java");
+        var stateMachine = JavaFileObjects.forResource("fixtures/enums/CollisionStateMachine.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
                 .compile(myEnum, stateMachine);
 
         assertThat(compilation)
-                .hadErrorContaining("Failed to write class fixtures.CollisionStateMachine")
+                .hadErrorContaining("Failed to write class fixtures.enums.CollisionStateMachine")
                 .inFile(myEnum);
     }
 
     @Test
     public void twoFieldsWithSameTypeIsInvalid() {
-        var file = JavaFileObjects.forResource("fixtures/TwoFieldsSameType.java");
+        var file = JavaFileObjects.forResource("fixtures/records/TwoFieldsSameType.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
                 .compile(file);
 
         assertThat(compilation)
-                .hadErrorContaining("Cannot have more than one field of type bot.den.foxflow.tests.BasicEnum in record fixtures.TwoFieldsSameType")
+                .hadErrorContaining("Cannot have more than one field of type bot.den.foxflow.tests.BasicEnum in record fixtures.records.TwoFieldsSameType")
                 .inFile(file);
     }
 
     @Test
     public void emptyEnum() {
-        var file = JavaFileObjects.forResource("fixtures/EmptyEnum.java");
+        var file = JavaFileObjects.forResource("fixtures/enums/EmptyEnum.java");
 
         var compilation = Compiler.javac()
                 .withProcessors(new StateMachineAnnotationProcessor())
@@ -211,7 +211,7 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("fixtures.EmptyEnum must have at least one enum constant")
+                .hadErrorContaining("fixtures.enums.EmptyEnum must have at least one enum constant")
                 .inFile(file);
     }
 }

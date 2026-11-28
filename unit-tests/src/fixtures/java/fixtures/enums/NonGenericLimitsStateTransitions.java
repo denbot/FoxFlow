@@ -1,8 +1,7 @@
-package fixtures;
+package fixtures.enums;
 
 import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.StateMachine;
-import bot.den.foxflow.tests.BasicEnum;
 
 @StateMachine
 public enum NonGenericLimitsStateTransitions implements LimitsStateTransitions {

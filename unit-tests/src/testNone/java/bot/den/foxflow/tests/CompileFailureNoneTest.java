@@ -9,7 +9,7 @@ import static com.google.testing.compile.CompilationSubject.assertThat;
 public class CompileFailureNoneTest {
     @Test
     public void noneVersionHasNoTrigger() {
-        var file = JavaFileObjects.forResource("fixtures/Trigger.java");
+        var file = JavaFileObjects.forResource("fixtures/ungenerated_code/Trigger.java");
 
         var compilation = Compiler.javac().compile(file);
 

@@ -1,4 +1,4 @@
-package fixtures;
+package fixtures.records;
 
 import bot.den.foxflow.StateMachine;
 import bot.den.foxflow.tests.BasicEnum;

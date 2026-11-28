@@ -1,4 +1,4 @@
-package fixtures;
+package fixtures.ungenerated_code;
 
 import bot.den.foxflow.tests.BasicEnum;
 import bot.den.foxflow.tests.BasicEnumStateMachine;

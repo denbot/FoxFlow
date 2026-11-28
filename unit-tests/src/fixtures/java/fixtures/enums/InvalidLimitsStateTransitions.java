@@ -1,4 +1,4 @@
-package fixtures;
+package fixtures.enums;
 
 import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.StateMachine;
