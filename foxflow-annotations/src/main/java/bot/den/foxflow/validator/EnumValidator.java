@@ -3,16 +3,12 @@ package bot.den.foxflow.validator;
 import bot.den.foxflow.DefaultState;
 import bot.den.foxflow.LimitsStateTransitions;
 import bot.den.foxflow.Environment;
-import bot.den.foxflow.RobotState;
 import bot.den.foxflow.builders.FieldHelper;
 import bot.den.foxflow.exceptions.InvalidSetupException;
 import com.palantir.javapoet.ClassName;
-import com.palantir.javapoet.ParameterizedTypeName;
-import com.palantir.javapoet.TypeName;
-import org.wpilib.util.Pair;
-import org.wpilib.units.measure.Time;
 
 import javax.lang.model.element.Element;
+import javax.lang.model.element.ElementKind;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -27,26 +23,23 @@ public class EnumValidator implements Validator {
 
         implementsStateTransitionInterface = environment.validlySelfImplements(LimitsStateTransitions.class);
 
-        Set<? extends Element> elementsAnnotatedWithDefaultOptions = environment
-                .roundEnvironment()
-                .getElementsAnnotatedWith(DefaultState.class);
+        Set<? extends Element> enumElements = environment.element()
+                .getEnclosedElements()
+                .stream()
+                .filter(e -> e.getKind().equals(ElementKind.ENUM_CONSTANT))
+                .collect(Collectors.toUnmodifiableSet());
 
-        // RobotState was compiled already, so would not be in the previous list
-        if(environment.element().getQualifiedName().toString().equals(RobotState.class.getCanonicalName())) {
-            elementsAnnotatedWithDefaultOptions = environment.element()
-                    .getEnclosedElements()
-                    .stream()
-                    .filter(e -> e.getAnnotation(DefaultState.class) != null)
-                    .collect(Collectors.toSet());
+        if(enumElements.isEmpty()) {
+            throw new InvalidSetupException(typeElement + " must have at least one enum constant");
         }
 
-        var defaultOptions = elementsAnnotatedWithDefaultOptions
+        Set<? extends Element> defaultOptions = enumElements
                 .stream()
-                .filter((e) -> e.getEnclosingElement().equals(environment.element()))
+                .filter(e -> e.getAnnotation(DefaultState.class) != null)
                 .collect(Collectors.toUnmodifiableSet());
 
         if(defaultOptions.size() > 1) {
-            throw new InvalidSetupException("Cannot put the @DefaultState annotation on more than one element of the same enum");
+            throw new InvalidSetupException("Cannot put the @DefaultState annotation on more than one element of " + typeElement.getQualifiedName());
         }
 
         var first = defaultOptions.stream().findFirst();

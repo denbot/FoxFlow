@@ -43,7 +43,7 @@ public class CompileFailureTest {
 
         assertThat(compilation).hadErrorCount(1);
         assertThat(compilation)
-                .hadErrorContaining("Cannot put the @DefaultState annotation on more than one element of the same enum")
+                .hadErrorContaining("Cannot put the @DefaultState annotation on more than one element of fixtures.TwoDefaultStateInEnum")
                 .inFile(file);
     }
 
@@ -198,6 +198,20 @@ public class CompileFailureTest {
 
         assertThat(compilation)
                 .hadErrorContaining("Cannot have more than one field of type bot.den.foxflow.tests.BasicEnum in record fixtures.TwoFieldsSameType")
+                .inFile(file);
+    }
+
+    @Test
+    public void emptyEnum() {
+        var file = JavaFileObjects.forResource("fixtures/EmptyEnum.java");
+
+        var compilation = Compiler.javac()
+                .withProcessors(new StateMachineAnnotationProcessor())
+                .compile(file);
+
+        assertThat(compilation).hadErrorCount(1);
+        assertThat(compilation)
+                .hadErrorContaining("fixtures.EmptyEnum must have at least one enum constant")
                 .inFile(file);
     }
 }
